@@ -196,11 +196,18 @@ function build_ClassicalInteractions(L::Lattice{D,MDI{D2},T,C}, cl_spins::Vector
         IM[i,j] = get_value(L, cl_spins[i], cl_spins[j])
         IM[j,i] = IM[i,j]
     end end
+    print(issymmetric(IM),"\n")
     return Symmetric(IM)::Symmetric{Float64, SharedMatrix{Float64}}
 end
 build_ClassicalInteractions(A::Approx) where Approx<:Union{PureClassicalApprox, HybridApprox} = build_ClassicalInteractions(A.L, get_cl_spins(A))
 
-function build_InterClusterInteractions(A::ClusteredApprox)
+@inline build_InterClusterInteractions(A::ClusteredApprox) = _build_InterClusterInteractions(A)
+function build_InterClusterInteractions(A::ClusteredApprox{Lattice{D,typeof(nearest_neighbours),T,C}}) where {D,T,C}
+    edge_spins, IM = _build_InterClusterInteractions(A)
+    return edge_spins::Vector{Int64}, shared_sparse(IM)::SharedSparseMatrixCSC{Float64,Int64}
+end
+
+function _build_InterClusterInteractions(A::ClusteredApprox)
     edge_spins = Set{Int64}()
     cluster_spins = get_first_cluster(A)
     links = Vector{Tuple{Int64,Int64,Int64,Float64}}()
@@ -220,27 +227,31 @@ function build_InterClusterInteractions(A::ClusteredApprox)
             end
         end
     end
-    #print("$edge_spins\n$links\n")
+    io = open("test.txt", "w")
+    #print(io, "$edge_spins\n$links\n")
     eedge_spins = Int64[edge_spins...]
     sort!(eedge_spins)
     len = length(eedge_spins)*A.cluster_num
-    IM = zeros(Float64, len, len)
+    IM = SharedMatrix{Float64}(len, len)
+    fill!(IM, 0.0)
     for cluster in 1:A.cluster_num
         cl_pos = ind2sub(A.outer_cluster_dims, cluster)
         delta = collect(cl_pos) - cl_pos1
-        #print("$delta\n")
+        #print(io,"$delta\n\n")
         for link in links
             p1 = sub2ind((length(eedge_spins), A.cluster_num), findfirst(eedge_spins, link[1]), cluster)
             cl_p2 = (collect(ind2sub(A.outer_cluster_dims, link[3])) .+ delta .- 1).%collect(A.outer_cluster_dims) .+ 1
-            #print("$cl_p2\n")
-            #print("$link\n")
+            #print(io,"$cl_p2\n")
+            #print(io,"$link\n")
             p2 = sub2ind((length(eedge_spins), A.cluster_num), findfirst(eedge_spins, link[2]), sub2ind(A.outer_cluster_dims, cl_p2...))
+            #print(io,p1,"\t",p2,"\n")
             IM[p1,p2] = link[4]
         end
-        #print("\n\n\n")
+        #print(io,"\n\n\n")
     end
+    close(io)
     IM .= .-IM.*sqrt(2^(length(cluster_spins))).*0.25
-    return eedge_spins::Vector{Int64}, shared_sparse(IM)::SparseMatrixCSC{Float64, Int64}
+    return eedge_spins::Vector{Int64}, IM::SharedMatrix{Float64}
 end
 
 function _build_QuantumClassicalInteractions(A::HybridApprox)

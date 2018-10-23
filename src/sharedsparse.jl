@@ -1,3 +1,5 @@
+import Base.getindex
+
 struct SharedSparseMatrixCSC{Tv, Ti<:Integer} <: AbstractSparseMatrix{Tv, Ti}
     m::Int
     n::Int
@@ -100,4 +102,22 @@ function shared_sparse_IJ_sorted(I::AbstractVector{Ti}, J::AbstractVector{Ti},
     end
 
     return SharedSparseMatrixCSC(m, n, SharedVector{Ti}(colptr), SharedVector{Ti}(I), SharedVector{Tv}(V))
+end
+
+function getindex(A::SharedSparseMatrixCSC{T}, i0::Int, i1::Int) where T
+    if !(1 <= i0 <= A.m && 1 <= i1 <= A.n); throw(BoundsError()); end
+    first = A.colptr[i1]
+    last = A.colptr[i1+1]-1
+    while first <= last
+        mid = (first + last) >> 1
+        t = A.rowval[mid]
+        if t == i0
+            return A.nzval[mid]
+        elseif t > i0
+            last = mid - 1
+        else
+            first = mid + 1
+        end
+    end
+    return zero(T)
 end

@@ -120,6 +120,8 @@ function get_spins_by_name(A::Approx, name::Symbol) where Approx<:AbstractApprox
         return get_all_spins(A)
     elseif name==:central
         return get_central_spins(A)
+    elseif name==:allq
+        return get_q_spins(A)
     end
 end
 

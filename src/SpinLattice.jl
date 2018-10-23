@@ -1,7 +1,7 @@
-__precompile__()
+#__precompile__()
 
 module SpinLattice
-using DiffEqBase, OrdinaryDiffEq, RecursiveArrayTools, JLD, DataStructures
+using DiffEqBase, OrdinaryDiffEq, RecursiveArrayTools, JLD, HDF5, DataStructures
 using DiffEqCallbacks
 using Iterators: product
 

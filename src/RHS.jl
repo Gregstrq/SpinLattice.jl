@@ -26,14 +26,14 @@ end
 
 ############# Structured Approximation
 
-struct ClusteredRHSFunction{TH<:AbstractSparseMatrix, TIM<:AbstractSparseMatrix, T3<:AbstractSparseMatrix} <: AbstractRHSFunction
+struct ClusteredRHSFunction{TH<:AbstractSparseMatrix, TIM<:Union{AbstractMatrix,AbstractSparseMatrix}, T3<:AbstractSparseMatrix} <: AbstractRHSFunction
     Js::NTuple{3, Float64}
     H::TH
     edgeSpinOperators::Matrix{T3}###row - spin position, col - spin projection
     average_values::VectorOfArray{Float64, 2, Array{Vector{Float64},1}}
-    average_values_arr::VectorOfArray{Float64, 3, Array{Matrix{Float64},1}}
+    #average_values_arr::VectorOfArray{Float64, 3, Array{Matrix{Float64},1}}
     cl_field::VectorOfArray{Float64, 2, Array{Vector{Float64},1}}
-    cl_field_arr::VectorOfArray{Float64, 3, Array{Matrix{Float64},1}}
+    #cl_field_arr::VectorOfArray{Float64, 3, Array{Matrix{Float64},1}}
     cluster_temp_state::Vector{Complex{Float64}}
     IM::TIM
     num_of_espins::Int64
@@ -43,23 +43,24 @@ function build_RHS_function(A::Approx) where {Approx<:ClusteredApprox}
     Dh = H.m
     edge_spins, IM = build_InterClusterInteractions(A)
     average_values = VectorOfArray([zeros(Float64, size(IM,1)), zeros(Float64, size(IM,1)), zeros(Float64, size(IM,1))])
-    average_values_arr = VectorOfArray([reshape(average_values[i], (length(edge_spins), A.cluster_num)) for i in eachindex(average_values)])
+    #average_values_arr = VectorOfArray([reshape(average_values[i], (length(edge_spins), A.cluster_num)) for i in eachindex(average_values)])
     cl_field = VectorOfArray([zeros(Float64, size(IM,1)), zeros(Float64, size(IM,1)), zeros(Float64, size(IM,1))])
-    cl_field_arr = VectorOfArray([reshape(cl_field[i], (length(edge_spins), A.cluster_num)) for i in eachindex(cl_field)])
+    #cl_field_arr = VectorOfArray([reshape(cl_field[i], (length(edge_spins), A.cluster_num)) for i in eachindex(cl_field)])
     edgeSpinOperators = Matrix{SharedSparseMatrixCSC{Complex{Float64}, Int64}}(3,length(edge_spins))
     for i in eachindex(edge_spins) for sigma in 1:3
         edgeSpinOperators[sigma, i] = build_Spin_Operator(Dh, edge_spins[i], sigma)
     end end
     cluster_temp_state = Vector{Complex{Float64}}(Dh)
-    ClusteredRHSFunction(A.L.Js, H, edgeSpinOperators, average_values, average_values_arr, cl_field, cl_field_arr, cluster_temp_state, IM, length(edge_spins))
+    ClusteredRHSFunction(A.L.Js, H, edgeSpinOperators, average_values, cl_field, cluster_temp_state, IM, length(edge_spins))
 end
 
 function (ClF::ClusteredRHSFunction)(t, u::T, du::T) where T<:VectorOfArray{Complex{Float64},2,Array{Array{Complex{Float64},1},1}}
+    dims = (ClF.num_of_espins, length(u))
     @inbounds for cluster in eachindex(u)
         cl_norm = norm(u[cluster])
         for espin in 1:ClF.num_of_espins for sigma in 1:3
             A_mul_B!(ClF.cluster_temp_state, ClF.edgeSpinOperators[sigma, espin], u[cluster])
-            ClF.average_values_arr[sigma][espin, cluster] = real(dot(u[cluster], ClF.cluster_temp_state))/cl_norm
+            ClF.average_values[sigma][sub2ind(dims, espin, cluster)] = real(dot(u[cluster], ClF.cluster_temp_state))/cl_norm
         end end
     end
     @inbounds for sigma in 1:3
@@ -68,7 +69,7 @@ function (ClF::ClusteredRHSFunction)(t, u::T, du::T) where T<:VectorOfArray{Comp
     @inbounds for cluster in eachindex(u)
         A_mul_B!(du[cluster], ClF.H, u[cluster])
         for espin in 1:ClF.num_of_espins for sigma in 1:3
-            A_mul_B!(ClF.cl_field_arr[sigma][espin, cluster], ClF.edgeSpinOperators[sigma, espin], u[cluster], one(Complex{Float64}), du[cluster])
+            A_mul_B!(ClF.cl_field[sigma][sub2ind(dims, espin, cluster)], ClF.edgeSpinOperators[sigma, espin], u[cluster], one(Complex{Float64}), du[cluster])
         end end
         du[:,cluster] .*= -1im
     end

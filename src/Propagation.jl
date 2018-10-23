@@ -33,29 +33,35 @@ end
 Saver() = Saver{:no}("")
 Saver(filename::String) = Saver{:file}(filename)
 
-@inline save_data(s::Saver{:no}, cf_vals::CFVals) = nothing
-@inline function save_data(s::Saver{:file}, cf_vals::CFVals)
-    jldopen(s.filename, "w") do file
+@inline save_data(s::Saver{:no}, cf_vals::CFVals, iter = 0) = nothing
+@inline save_data(s::Saver{:file}, cf_vals::CFVals, iter) = save_data(s.filename, cf_vals, iter)
+function save_data(filename::AbstractString, cf_vals::CFVals, iter)
+    jldopen(filename, "w") do file
+        gdata = g_create(file, "data")
+        gerrors = g_create(file, "errors")
         for i in Base.OneTo(length(cf_vals.str_vec))
-            write(file, cf_vals.str_vec[i], cf_vals.data[i])
+            write(gdata, cf_vals.str_vec[i], cf_vals.data[i])
+            write(gerrors, cf_vals.str_vec[i], cf_vals.errors[i])
         end
         write(file, "ts", cf_vals.ts)
+        write(file, "str_vec", cf_vals.str_vec)
+        write(file, "nTrials", iter)
     end
 end
 function load_data(filename::AbstractString)
     jdata = load(filename)
-    keys_ar = (jdata |> keys |> collect)
-    deleteat!(keys_ar, findfirst(keys_ar, "ts"))
-    return CFVals(keys_ar, jdata["ts"], VectorOfArray([jdata[key] for key in keys_ar]))
+    data = VectorOfArray([jdata["data"][key] for key in jdata["str_vec"]])
+    errors = VectorOfArray([jdata["errors"][key] for key in jdata["str_vec"]])
+    return CFVals(jdata["str_vec"], jdata["ts"], data, errors), jdata["nTrials"]
 end
 function load_data!(cf_vals::CFVals, filename::AbstractString)
     jdata = load(filename)
-    keys_ar = (jdata |> keys |> collect)
-    deleteat!(keys_ar, findfirst(keys_ar, "ts"))
-    for key in keys_ar
-        i = findfirst(cf_vals.str_vec, key)
-        cf_vals.data[:,i] .= jdata[key]
+    for i in eachindex(jdata["str_vec"])
+        key = jdata["str_vec"][i]
+        cf_vals.data[:,i] = jdata["data"][key]
+        cf_vals.error[:,i] = jdata["errors"][key]
     end
+    return nTrials
 end
 @inline load_data!(cf_vals::CFVals, saver::Saver{:file}) = load_data!(cf_vals, saver.filename)
 
@@ -138,6 +144,8 @@ function simulate(LP::LProblem, nTrials::Int64, alg::OrdinaryDiffEqAlgorithm, lo
     A = LP.A
     OSET = LP.cb.affect!.save_func
     filename = (@sprintf("Tm%.2f dt%.3f del%d Obs%s/", LP.Tmax, LP.tstep, LP.delimiter, get_string(LP.rules.str_vec)), get_string(nTrials, thread, alg))
+    f2 = "prob$(thread).jld"
+    save(f2, "RHS", LP.prob.f)
     log_o, save_o = set_Logging(logger, A, filename)
     iter = get_status(log_o)
     offset = get_offset(log_o)
@@ -155,8 +163,8 @@ function simulate(LP::LProblem, nTrials::Int64, alg::OrdinaryDiffEqAlgorithm, lo
     t0 = t1-offset
     integrator = init(LP.prob, alg; save_everystep = false, callback = LP.cb, abstol = abstol_i, reltol = reltol_i, kwargs...)
     solve!(integrator)
-    calculateCorrFunc!(A, saved_values, rules, cf_vals)
-    save_data(save_o, cf_vals)
+    calculateCorrFunc!(A, saved_values, rules, cf_vals, iter)
+    save_data(save_o, cf_vals, iter)
     t2 = time()
     output(log_o, @sprintf("%10d %20.5f %20.5f %10d", iter, t2-t1, (t2-t0)/iter, nTrials - iter))
     iter += 1
@@ -164,15 +172,15 @@ function simulate(LP::LProblem, nTrials::Int64, alg::OrdinaryDiffEqAlgorithm, lo
         t1 = time()
         reinit!(integrator, randomState(A,OSET,RNG))
         solve!(integrator)
-        calculateCorrFunc!(A, saved_values, rules, cf_vals)
+        calculateCorrFunc!(A, saved_values, rules, cf_vals, iter)
         t2 = time()
         if iter%interval == 0
-            save_data(save_o, cf_vals)
+            save_data(save_o, cf_vals, iter)
             output(log_o, @sprintf("%10d %20.5f %20.5f %10d", iter, t2-t1, (t2-t0)/iter, nTrials - iter))
         end
         iter += 1
     end
-    save_data(save_o, cf_vals)
+    save_data(save_o, cf_vals, iter-1)
     output(log_o, @sprintf("%10d %20.5f %20.5f %10d", nTrials, t2-t0, (t2-t0)/(iter-1), 0))
     #close(log_o)
     return cf_vals
@@ -192,3 +200,36 @@ function parallel_simulate(LP::LProblem, nTrials::Int64, alg::OrdinaryDiffEqAlgo
 end
 
 export parallel_simulate
+
+
+
+function aggregate(dirname::AbstractString = pwd())
+    corfs = Vector{CFVals}()
+    Ns = Vector{Float64}()
+    for filename in readdir(dirname)
+        file = joinpath(dirname, filename)
+        if isfile(file) && file[end-3:end] == ".jld"
+            corf, Ntr = load_data(file)
+            push!(corfs, corf)
+            push!(Ns, Ntr)
+        end
+    end
+    aggregate = zeros(first(corfs))
+    N_total = sum(Ns)
+    for i in eachindex(corfs)
+        aggregate.data   .= aggregate.data  .+ corfs[i].data .* Ns[i]
+        aggregate.errors .= aggregate.errors .+ corfs[i].errors
+    end
+    for j = 2:length(corfs), i = 1:j
+        coef = Ns[i]*Ns[j]/N_total
+        aggregate.errors .= aggregate.errors .+ (corfs[i].data - corfs[j].data).^2 .* coef
+    end
+    correction = N_total/(N_total - 1)
+    for i in length(aggregate.data)
+        coef = 1/aggregate.data[1,i]
+        aggregate.data[:,i]   .= aggregate.data[:,i] .* coef
+        aggregate.errors[:,i] .= sqrt.(aggregate.errors[:,i] .* correction) .* coef
+    end
+    save_data(joinpath(dirname, "aggregate.jld"), aggregate, N_total)
+    return aggregate, N_total
+end

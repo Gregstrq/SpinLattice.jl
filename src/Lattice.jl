@@ -11,6 +11,8 @@ mutable struct Lattice{D,F,T,C}
     tot_spin_num::Int64
     basis_name::Symbol
     cell_name::Symbol
+    ccell_cartesian::NTuple{D,Int64}
+    ccell_linear::Int64
     complex::Val{C}
     function Lattice(lattice_dims::NTuple{D,Int64}, Js::NTuple{3,Float64}, Jfunc::Interaction{F}, hs::NTuple{3,Float64}, basis_vectors::Matrix{T}, cell_vectors::Vector{Vector{T}}, basis_name::Symbol, cell_name::Symbol) where {D,F,T}
         Dim = length(lattice_dims)
@@ -30,7 +32,9 @@ mutable struct Lattice{D,F,T,C}
         tot_cell_num = prod(lattice_dims)
         tot_spin_num = tot_cell_num*cell_size
         cc = hs[2]!=0.
-        new{D,F,T,cc}(lattice_dims, basis_vectors, cell_vectors, increments, Js, hs, Jfunc, cell_size, tot_cell_num, tot_spin_num, basis_name, cell_name, Val{cc}())
+        ccell_cartesian = div.(lattice_dims,2).+1
+        ccell_linear = sub2ind(lattice_dims, ccell_cartesian...)
+        new{D,F,T,cc}(lattice_dims, basis_vectors, cell_vectors, increments, Js, hs, Jfunc, cell_size, tot_cell_num, tot_spin_num, basis_name, cell_name, ccell_cartesian, ccell_linear, Val{cc}())
     end
 end
 
@@ -55,6 +59,16 @@ function check_spin(L::Lattice, spin::Tuple{I, I}) where {I}
     assert((0<spin[1]<=prod(L.lattice_dims)) && (0<spin[2]<=L.cell_size))
 end
 
+function get_patch_vector(L::Lattice, spin1::S, spin2::S) where {S<:Tuple{Integer,Integer}}
+    check_spin(L, spin1)
+    check_spin(L, spin2)
+    new_s2_cart = ind2sub(L.lattice_dims, spin2[1]) .- ind2sub(L.lattice_dims, spin1[1]) .+ L.ccell_cartesian
+    new_s2_cart = mod.(new_s2_cart.-1, L.lattice_dims).+1
+    return get_vector(L, (sub2ind(L.lattice_dims, new_s2_cart...), spin2[2])) .- get_vector(L, (L.ccell_linear, spin1[2]))
+end
+
+@inline get_patch_vector(L::Lattice, spin1::S, spin2::S) where {S<:Integer} = get_patch_vector(L, (spin1, 1), (spin2, 1))
+
 function get_smallest_vector(L::Lattice, spin1::S, spin2::S) where {S<:Union{Integer,Tuple{Integer,Integer}}}
     check_spin(L, spin1)
     check_spin(L, spin2)
@@ -74,26 +88,25 @@ function get_smallest_vector(L::Lattice, spin1::S, spin2::S) where {S<:Union{Int
 end
 
 function get_value(L::Lattice, spin1::S, spin2::S) where {S<:Union{Integer,Tuple{Integer,Integer}}}
-    return L.Jfunc(get_smallest_vector(L, spin1, spin2))
+    return L.Jfunc(get_patch_vector(L, spin1, spin2))
 end
 
 function get_string(L::Ltype) where {Ltype<:Lattice}
     @sprintf("D%d d%d S:%s C:%s Js(%.3f,%.3f,%.3f) Jf%s H(%.3f,%.3f,%.3f)", length(L.lattice_dims), L.cell_size, string(L.basis_name), string(L.cell_name), L.Js[1], L.Js[2], L.Js[3], func_type(L.Jfunc), L.hs[1], L.hs[2], L.hs[3])
 end
 
-function get_string(tup::NTuple{N,T}) where {N,T}
+function get_string(vec::Vector)
     str = "("
     i = 1
-    str *= "$(tup[i])"
+    str *= "$(vec[i])"
     i += 1
-    while i<= length(tup)
-        str *= ", $(tup[i])"
+    while i<= length(vec)
+        str *= ", $(vec[i])"
         i += 1
     end
     str *= ")"
     return str
 end
-@inline get_string(vec::Vector{T}) where T = get_string(Tuple(vec))
 
 function translate_indices(L::Lattice, indices::Vector{Tuple{Int64, Int64}})
     sort!(indices)
@@ -148,6 +161,10 @@ struct SpinArray
 end
 @inline SpinArray(spins::Vector{NTuple{2,Int64}}, name = :undef) = SpinArray(name, spins)
 @inline SpinArray(L::Lattice{D}, spins::Vector{NTuple{D,Int64}}, name = :undef) where {D} = SpinArray(name, read_indices(L, spins))
+function SpinArray(L::Lattice{D}, spins::Vector{T}, name = :undef) where T<:Tuple{NTuple{D, Int64}, Int64} where D
+    fff(index::T) = (sub2ind(L.lattice_dims, index[1]...), index[2])
+    return SpinArray(name, map(fff, spins))
+end
 
 @inline get_string(s::Symbol) = string(s)
 @inline get_string(s::SpinArray) = s.name==:undef ? "$(s.spins)" : string(s.name)

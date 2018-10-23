@@ -180,16 +180,32 @@ end
 
 @inline get_rules(cfrules::ConvRules) = cfrules.rules
 
+#For Exact Approximation I should make a special type of CFVals and dispatch on ExactApprox to choose this particular type.
+
 struct CFVals
     str_vec::Vector{String}
     ts::Vector{Float64}
     data::VectorOfArray{Float64, 2, Vector{Vector{Float64}}}
+    errors::VectorOfArray{Float64, 2, Vector{Vector{Float64}}}
+end
+
+import Base.similar
+import Base.zeros
+
+@inline similar(cf::CFVals) = CFVals(copy(cf.str_vec), copy(cf.ts), similar(cf.data), similar(cf.errors))
+
+function zeros(cf::CFVals)
+    temp = similar(cf)
+    fill!(temp.data, 0.0)
+    fill!(temp.errors, 0.0)
+    return temp
 end
 
 
-
 function CFVals(rules::ConvRules, ts::Vector{Float64})
-    CFVals(rules.str_vec, ts, VectorOfArray([zeros(length(ts)) for rule in get_rules(rules)]))
+    data = VectorOfArray([zeros(length(ts)) for rule in get_rules(rules)])
+    errors = VectorOfArray([zeros(length(ts)) for rule in get_rules(rules)])
+    CFVals(rules.str_vec, ts, data, errors)
 end
 
 function make_oset(A::AbstractApproximation, links::NTuple{D, NTuple{2,Union{Symbol, SpinArray}}}, axes::Vector{Symbol}) where D
@@ -245,7 +261,7 @@ function calculateCorrFunc!(A::ExactApprox, saved_values::SavedValues, rules::Co
     end
 end
 
-function calculateCorrFunc!(A::AbstractApproximation, saved_values::SavedValues, rules::ConvRules, vals::CFVals)
+function calculateCorrFunc!(A::AbstractApproximation, saved_values::SavedValues, rules::ConvRules, vals::CFVals, iter)
      meanvals = Vector{Vector{Float64}}()
      savevals = saved_values.saveval
      l = length(savevals)
@@ -259,14 +275,15 @@ function calculateCorrFunc!(A::AbstractApproximation, saved_values::SavedValues,
      end
      #####
      data = vals.data
+     errors = vals.errors
      rule = get_rules(rules)
      for i in eachindex(rule)
         r1 = rule[i][1]
         r2 = rule[i][2]
         if r1 == r2
-            convolute_s!(meanvals[r1], data[i])
+            convolute_s!(meanvals[r1], data[i], errors[i], iter)
         else
-            convolute_d!(meanvals[r1], meanvals[r2], data[i])
+            convolute_d!(meanvals[r1], meanvals[r2], data[i], errors[i], iter)
         end
      end
 end
@@ -291,6 +308,39 @@ function convolute_s!(mean::Vector{Float64}, data::Vector{Float64})
     @inbounds while delta <= maxDelta
         stmd = stop-delta
         data[delta+1] += dot(mean, 1:stmd, mean, (1+delta):stop)/stmd
+        delta += 1
+    end
+end
+
+
+function convolute_d!(mean1::Vector{Float64}, mean2::Vector{Float64}, data::Vector{Float64}, errors::Vector{Float64}, iter)
+    delta = 1
+    stop = length(mean1)
+    maxDelta = length(data)
+    @inbounds while delta <= maxDelta
+        stmd = stop-delta+1
+        val = dot(mean1, 1:stmd, mean2, delta:stop)
+        val += dot(mean2, 1:stmd, mean1, delta:stop)
+        val *= 0.5/stmd
+        d1 = (val - data[delta])
+        data[delta] += d1/iter
+        d2 = (val - data[delta])
+        errors[delta] += d1*d2
+        delta += 1
+    end
+end
+
+function convolute_s!(mean::Vector{Float64}, data::Vector{Float64}, errors::Vector{Float64}, iter)
+    delta = 1
+    stop = length(mean)
+    maxDelta = length(data)
+    @inbounds while delta <= maxDelta
+        stmd = stop-delta+1
+        val = dot(mean, 1:stmd, mean, delta:stop)/stmd
+        d1 = (val-data[delta])
+        data[delta] += d1/iter
+        d2 = (val-data[delta])
+        errors[delta] += d1*d2
         delta += 1
     end
 end
