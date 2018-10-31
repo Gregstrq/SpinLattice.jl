@@ -96,6 +96,7 @@ function get_string(L::Ltype) where {Ltype<:Lattice}
 end
 
 function get_string(vec::Vector)
+    assert(length(vec)>0)
     str = "("
     i = 1
     str *= "$(vec[i])"

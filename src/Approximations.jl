@@ -122,6 +122,8 @@ function get_spins_by_name(A::Approx, name::Symbol) where Approx<:AbstractApprox
         return get_central_spins(A)
     elseif name==:allq
         return get_q_spins(A)
+    else
+        throw(ErrorException("The wrong identifier for the spin set\n"))
     end
 end
 

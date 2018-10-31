@@ -250,7 +250,7 @@ function _build_InterClusterInteractions(A::ClusteredApprox)
         #print(io,"\n\n\n")
     end
     close(io)
-    IM .= .-IM.*sqrt(2^(length(cluster_spins))).*0.25
+    IM .= .-IM.*sqrt(2^(length(cluster_spins))+1).*0.25
     return eedge_spins::Vector{Int64}, IM::SharedMatrix{Float64}
 end
 
@@ -278,7 +278,7 @@ function _build_QuantumClassicalInteractions(A::HybridApprox)
     cl2q = SharedMatrix{Float64}(length(edge_spins), length(cl_spins))
     transpose!(cl2q,q2cl)
     scale!(cl2q,-1.0)
-    q2cl .*= sqrt(2^length(q_spins))
+    q2cl .*= sqrt(2^length(q_spins)+1)
     return edge_spins, q2cl, cl2q
 end
 @inline build_QuantumClassicalInteractions(A::HybridApprox{Lattice{D,MDI{D2},T,C}}) where {D,D2,T,C} = _build_QuantumClassicalInteractions(A)
@@ -305,6 +305,6 @@ function build_QuantumClassicalInteractions(A::HybridApprox{Lattice{D,typeof(nea
         q2cl[link[2], findfirst(edge_spins,link[1])] += link[3]
     end
     cl2q = -transpose(q2cl)
-    q2cl .*= sqrt(2^length(q_spins))
+    q2cl .*= sqrt(2^length(q_spins)+1)
     return edge_spins, shared_sparse(q2cl)::SharedSparseMatrixCSC{Float64,Int64}, shared_sparse(cl2q)::SharedSparseMatrixCSC{Float64,Int64}
 end

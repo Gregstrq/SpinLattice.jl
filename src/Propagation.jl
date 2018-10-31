@@ -59,9 +59,9 @@ function load_data!(cf_vals::CFVals, filename::AbstractString)
     for i in eachindex(jdata["str_vec"])
         key = jdata["str_vec"][i]
         cf_vals.data[:,i] = jdata["data"][key]
-        cf_vals.error[:,i] = jdata["errors"][key]
+        cf_vals.errors[:,i] = jdata["errors"][key]
     end
-    return nTrials
+    return jdata["nTrials"]
 end
 @inline load_data!(cf_vals::CFVals, saver::Saver{:file}) = load_data!(cf_vals, saver.filename)
 
@@ -144,8 +144,6 @@ function simulate(LP::LProblem, nTrials::Int64, alg::OrdinaryDiffEqAlgorithm, lo
     A = LP.A
     OSET = LP.cb.affect!.save_func
     filename = (@sprintf("Tm%.2f dt%.3f del%d Obs%s/", LP.Tmax, LP.tstep, LP.delimiter, get_string(LP.rules.str_vec)), get_string(nTrials, thread, alg))
-    f2 = "prob$(thread).jld"
-    save(f2, "RHS", LP.prob.f)
     log_o, save_o = set_Logging(logger, A, filename)
     iter = get_status(log_o)
     offset = get_offset(log_o)
@@ -180,7 +178,7 @@ function simulate(LP::LProblem, nTrials::Int64, alg::OrdinaryDiffEqAlgorithm, lo
         end
         iter += 1
     end
-    save_data(save_o, cf_vals, iter-1)
+    save_data(save_o, cf_vals, iter)
     output(log_o, @sprintf("%10d %20.5f %20.5f %10d", nTrials, t2-t0, (t2-t0)/(iter-1), 0))
     #close(log_o)
     return cf_vals
@@ -201,19 +199,26 @@ end
 
 export parallel_simulate
 
-
-
-function aggregate(dirname::AbstractString = pwd())
+function parse_dir(dirname::AbstractString = pwd())
     corfs = Vector{CFVals}()
-    Ns = Vector{Float64}()
+    Ns = Vector{Int64}()
     for filename in readdir(dirname)
         file = joinpath(dirname, filename)
-        if isfile(file) && file[end-3:end] == ".jld"
+        if filename != "aggregate.jld" && isfile(file) && file[end-3:end] == ".jld"
             corf, Ntr = load_data(file)
             push!(corfs, corf)
             push!(Ns, Ntr)
         end
     end
+    return corfs, Ns
+end
+
+function aggregate(dirname::AbstractString = pwd())
+    corfs, Ns = parse_dir(dirname)
+    return aggregate(corfs, Ns, dirname)
+end
+
+function aggregate(corfs::Vector{CFVals}, Ns::Vector{Int64}, dirname::AbstractString = pwd(), agrname = "aggregate.jld")
     aggregate = zeros(first(corfs))
     N_total = sum(Ns)
     for i in eachindex(corfs)
@@ -225,11 +230,45 @@ function aggregate(dirname::AbstractString = pwd())
         aggregate.errors .= aggregate.errors .+ (corfs[i].data - corfs[j].data).^2 .* coef
     end
     correction = N_total/(N_total - 1)
-    for i in length(aggregate.data)
+    for i in 1:length(aggregate.data)
         coef = 1/aggregate.data[1,i]
         aggregate.data[:,i]   .= aggregate.data[:,i] .* coef
         aggregate.errors[:,i] .= sqrt.(aggregate.errors[:,i] .* correction) .* coef
     end
-    save_data(joinpath(dirname, "aggregate.jld"), aggregate, N_total)
+    save_data(joinpath(dirname, agrname), aggregate, N_total)
     return aggregate, N_total
+end
+
+function separate(Ns::Vector{Int64})
+    i = length(Ns)
+    lm = div(i,2)
+    l1 = Vector{Int64}()
+    l2 = Vector{Int64}()
+    sum1 = 0
+    sum2 = 0
+    while (length(l1)<lm) && (length(l2)<lm)
+        el = Ns[i]
+        if sum1>sum2
+            sum2 += el
+            push!(l2, i)
+        else
+            sum1 += el
+            push!(l1, i)
+        end
+        i -=1
+    end
+    if sum1 > sum2
+        append!(l2, 1:i)
+    else
+        append!(l1, 1:i)
+    end
+    return l1, l2
+end
+
+function aggregate2(dirname::AbstractString = pwd())
+    corfs, Ns = parse_dir(dirname)
+    l1, l2 = separate(Ns)
+    agr1, Ntot1 = aggregate(corfs[l1], Ns[l1], dirname, "aggregate1.jld")
+    agr2, Ntot2 = aggregate(corfs[l2], Ns[l2], dirname, "aggregate2.jld")
+    return agr1, Ntot1, agr2, Ntot2
 end

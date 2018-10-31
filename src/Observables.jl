@@ -112,7 +112,7 @@ struct HybridObservable{T1,T2, O1<:Union{QuantumObservable, EmptyObservable},O2<
         else
             CO = EmptyObservable()
         end
-        c = 2/sqrt(get_Dh(A))
+        c = 2/sqrt(get_Dh(A)+1)
         new{T1,T2, typeof(QO), typeof(CO)}(axis, name, c, QO, CO)
     end
 end
