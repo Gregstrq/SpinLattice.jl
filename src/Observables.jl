@@ -112,7 +112,7 @@ struct HybridObservable{T1,T2, O1<:Union{QuantumObservable, EmptyObservable},O2<
         else
             CO = EmptyObservable()
         end
-        c = 2/sqrt(get_Dh(A)+1)
+        c = sqrt(get_Dh(A)+1)/2
         new{T1,T2, typeof(QO), typeof(CO)}(axis, name, c, QO, CO)
     end
 end
@@ -132,7 +132,7 @@ function (CLO::ClusteredObservable)(v::VectorOfArray{Complex{Float64}, 2, Vector
     return s
 end
 @inline function (HO::HybridObservable)(v::ArrayPartition{Complex{Float64}, Tuple{Vector{Complex{Float64}}, VectorOfArray{T, 2, Vector{Vector{T}}}}}) where T<:Union{Float64,Complex{Float64}}
-    return HO.QO(v.x[1]) + HO.c*HO.CO(v.x[2])
+    return HO.c*HO.QO(v.x[1]) + HO.CO(v.x[2])
 end
 
 ########################################

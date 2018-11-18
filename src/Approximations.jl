@@ -36,7 +36,7 @@ struct PureClassicalApprox{Ltype} <: AbstractApproximation{Ltype}
     PureClassicalApprox(L::Ltype) where {Ltype<:Lattice} = new{Ltype}(L)
 end
 
-struct HybridApprox{Ltype} <: AbstractQuantumApproximation{Ltype}
+mutable struct HybridApprox{Ltype} <: AbstractQuantumApproximation{Ltype}
     L::Ltype
     q_spins::Vector{Tuple{Int64,Int64}}
     cl_spins::Vector{Tuple{Int64,Int64}}
@@ -186,8 +186,6 @@ function get_positions(A::HybridApprox, spins::Vector{NTuple{2,Int64}})
             push!(q_poss, pos1)
         elseif pos2!=0
             push!(cl_poss, pos2)
-        else
-            error("Something is very very wrong...")
         end
     end
     return sort!(q_poss), sort!(cl_poss)

@@ -121,12 +121,32 @@ function set_Logging(logger::Logger{:local, :cmd}, A::AbstractApproximation, fil
     log_o = CMDLog()
     return log_o, save_o
 end
+function set_Logging(logger::Logger{:local, :cmd}, A::AbstractApproximation, path_part::String, filenames::Vector{String})
+    path = "./Data/" * get_string(A.L) * "/" * get_string(A) * "/" * path_part
+    mkpath(path)
+    log_o = CMDLog()
+    save_os = Vector{Saver{:file}}()
+    for filename in filenames
+        push!(save_os, Saver(path * filename * ".jld"))
+    end
+    return log_o, save_os
+end
 function set_Logging(logger::Logger{:local, :file}, A::AbstractApproximation, filename::NTuple{2,String})
     path = "./Data/" * get_string(A.L) * "/" * get_string(A) * "/" * filename[1]
     mkpath(path)
     save_o = Saver(path * filename[2] * ".jld")
     log_o = FileLog(path * filename[2] * ".log")
     return log_o, save_o
+end
+function set_Logging(logger::Logger{:local, :file}, A::AbstractApproximation, path_part::String, filenames::Vector{String})
+    path = "./Data/" * get_string(A.L) * "/" * get_string(A) * "/" * path_part
+    mkpath(path)
+    log_o = FileLog(path * filenames[1] * ".log")
+    save_os = Vector{Saver{:file}}()
+    for filename in filenames
+        push!(save_os, Saver(path * filename * ".jld"))
+    end
+    return log_o, save_os
 end
 function set_Logging(logger::Logger{:cluster, :file}, A::AbstractApproximation, filename::NTuple{2,String})
     path = ENV["WORK_DIR"] * "/Data/" * get_string(A.L) * "/" * get_string(A) * "/" * filename[1]
@@ -135,6 +155,17 @@ function set_Logging(logger::Logger{:cluster, :file}, A::AbstractApproximation, 
     log_o = FileLog(path * filename[2] * ".log")
     return log_o, save_o
 end
+function set_Logging(logger::Logger{:cluster, :file}, A::AbstractApproximation, path_part::String, filenames::Vector{String})
+    path = ENV["WORK_DIR"] * "/Data/" * get_string(A.L) * "/" * get_string(A) * "/" * path_part
+    mkpath(path)
+    log_o = FileLog(path * filenames[1] * ".log")
+    save_os = Vector{Saver{:file}}()
+    for filename in filenames
+        push!(save_os, Saver(path * filename * ".jld"))
+    end
+    return log_o, save_os
+end
+
 
 function simulate(LP::LProblem, nTrials::Int64, alg::OrdinaryDiffEqAlgorithm, logger::Logger{T1,T2} = Logger{:no, :cmd}(), thread::Int64 = 1, interval::Int64 = 1, RNG::AbstractRNG=Base.GLOBAL_RNG; abstol_i = 1e-14, reltol_i = 1e-6, kwargs...) where {T1,T2}
     assert(nTrials > 0)

@@ -1,4 +1,4 @@
-__precompile__()
+#__precompile__()
 
 module SpinLattice
 using DiffEqBase, OrdinaryDiffEq, RecursiveArrayTools, JLD, HDF5, DataStructures
@@ -17,6 +17,7 @@ include("InitialConditions.jl")
 include("Models.jl")
 include("Propagation.jl")
 include("plotting.jl")
+include("hdisorder.jl")
 
 
 export Lattice, SpinArray, Interaction, ConvRules, CFVals, MDI, nearest_neighbours
