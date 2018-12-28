@@ -231,11 +231,12 @@ end
 export parallel_simulate
 
 function parse_dir(dirname::AbstractString = pwd())
+    blacklist = ["aggregate.jld", "aggregate1.jld", "aggregate2.jld"]
     corfs = Vector{CFVals}()
     Ns = Vector{Int64}()
     for filename in readdir(dirname)
         file = joinpath(dirname, filename)
-        if filename != "aggregate.jld" && isfile(file) && file[end-3:end] == ".jld"
+        if !(filename in blacklist) && isfile(file) && file[end-3:end] == ".jld"
             corf, Ntr = load_data(file)
             push!(corfs, corf)
             push!(Ns, Ntr)
@@ -245,12 +246,13 @@ function parse_dir(dirname::AbstractString = pwd())
 end
 
 function parse_dir(dirlist::Tuple{AbstractString,Vararg{AbstractString}})
+    blacklist = ["aggregate.jld", "aggregate1.jld", "aggregate2.jld"]
     corfs = Vector{CFVals}()
     Ns = Vector{Int64}()
     for dirname in dirlist
         for filename in readdir(dirname)
             file = joinpath(dirname, filename)
-            if filename != "aggregate.jld" && isfile(file) && file[end-3:end] == ".jld"
+            if !(filename in blacklist) && isfile(file) && file[end-3:end] == ".jld"
                 corf, Ntr = load_data(file)
                 push!(corfs, corf)
                 push!(Ns, Ntr)
