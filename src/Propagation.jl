@@ -109,20 +109,28 @@ end
 
 @inline get_string(nTrials::Int64, thread::Int64, alg::OrdinaryDiffEqAlgorithm) = @sprintf("nTr%d Alg(%s) thr%d", nTrials, alg, thread)
 
-function set_Logging(logger::Logger{:no, :cmd}, A::AbstractApproximation, filename::NTuple{2,String})
+function get_path_string(A::abstractApproximation)
+    return get_string(A.L) * "/" * get_string(A) * "/"
+end
+function get_path_string(A::CompositeApproximation)
+    s1 = get_string(A.A1.L) * @sprintf(" + UnSp:%s", A.A2.L.cell_name)
+    return s1 * "/" * get_string(A.A1) * "/"
+end
+
+function set_Logging(logger::Logger{:no, :cmd}, A::abstractApproximation, filename::NTuple{2,String})
     save_o = Saver()
     log_o = CMDLog()
     return log_o, save_o
 end
-function set_Logging(logger::Logger{:local, :cmd}, A::AbstractApproximation, filename::NTuple{2,String})
-    path = "./Data/" * get_string(A.L) * "/" * get_string(A) * "/" * filename[1]
+function set_Logging(logger::Logger{:local, :cmd}, A::abstractApproximation, filename::NTuple{2,String})
+    path = "./Data/" * get_path_string(A) * filename[1]
     mkpath(path)
     save_o = Saver(path * filename[2] * ".jld")
     log_o = CMDLog()
     return log_o, save_o
 end
-function set_Logging(logger::Logger{:local, :cmd}, A::AbstractApproximation, path_part::String, filenames::Vector{String})
-    path = "./Data/" * get_string(A.L) * "/" * get_string(A) * "/" * path_part
+function set_Logging(logger::Logger{:local, :cmd}, A::abstractApproximation, path_part::String, filenames::Vector{String})
+    path = "./Data/" * get_path_string(A) * path_part
     mkpath(path)
     log_o = CMDLog()
     save_os = Vector{Saver{:file}}()
@@ -131,15 +139,15 @@ function set_Logging(logger::Logger{:local, :cmd}, A::AbstractApproximation, pat
     end
     return log_o, save_os
 end
-function set_Logging(logger::Logger{:local, :file}, A::AbstractApproximation, filename::NTuple{2,String})
-    path = "./Data/" * get_string(A.L) * "/" * get_string(A) * "/" * filename[1]
+function set_Logging(logger::Logger{:local, :file}, A::abstractApproximation, filename::NTuple{2,String})
+    path = "./Data/" * get_path_string(A) * filename[1]
     mkpath(path)
     save_o = Saver(path * filename[2] * ".jld")
     log_o = FileLog(path * filename[2] * ".log")
     return log_o, save_o
 end
-function set_Logging(logger::Logger{:local, :file}, A::AbstractApproximation, path_part::String, filenames::Vector{String})
-    path = "./Data/" * get_string(A.L) * "/" * get_string(A) * "/" * path_part
+function set_Logging(logger::Logger{:local, :file}, A::abstractApproximation, path_part::String, filenames::Vector{String})
+    path = "./Data/" * get_path_string(A) * path_part
     mkpath(path)
     log_o = FileLog(path * filenames[1] * ".log")
     save_os = Vector{Saver{:file}}()
@@ -148,15 +156,15 @@ function set_Logging(logger::Logger{:local, :file}, A::AbstractApproximation, pa
     end
     return log_o, save_os
 end
-function set_Logging(logger::Logger{:cluster, :file}, A::AbstractApproximation, filename::NTuple{2,String})
-    path = ENV["WORK_DIR"] * "/Data/" * get_string(A.L) * "/" * get_string(A) * "/" * filename[1]
+function set_Logging(logger::Logger{:cluster, :file}, A::abstractApproximation, filename::NTuple{2,String})
+    path = ENV["WORK_DIR"] * "/Data/" * get_path_string(A) * filename[1]
     mkpath(path)
     save_o = Saver(path * filename[2] * ".jld")
     log_o = FileLog(path * filename[2] * ".log")
     return log_o, save_o
 end
-function set_Logging(logger::Logger{:cluster, :file}, A::AbstractApproximation, path_part::String, filenames::Vector{String})
-    path = ENV["WORK_DIR"] * "/Data/" * get_string(A.L) * "/" * get_string(A) * "/" * path_part
+function set_Logging(logger::Logger{:cluster, :file}, A::abstractApproximation, path_part::String, filenames::Vector{String})
+    path = ENV["WORK_DIR"] * "/Data/" * get_path_string(A) * path_part
     mkpath(path)
     log_o = FileLog(path * filenames[1] * ".log")
     save_os = Vector{Saver{:file}}()

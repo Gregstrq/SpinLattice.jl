@@ -308,3 +308,52 @@ function build_QuantumClassicalInteractions(A::HybridApprox{Lattice{D,typeof(nea
     q2cl .*= sqrt(2^length(q_spins)+1)
     return edge_spins, shared_sparse(q2cl)::SharedSparseMatrixCSC{Float64,Int64}, shared_sparse(cl2q)::SharedSparseMatrixCSC{Float64,Int64}
 end
+
+#####################################
+#What is written here works only for long-range coupling.
+
+
+function build_InterLattice_Couplings(A::CompositeApproximation{Approx1,Approx2}, edge_spins_len::Int64) where {Approx1<:HybridApprox, Approx2<:PureClassicalApprox}
+    q1tocl2, cl2toq1 = build_InterLattice_q2cl(A.A1, A.A2, edge_spins_len, A.gamma)
+    cl1tocl2, cl2tocl1 = build_InterLattice_cl2cl(A.A1, A.A2, A.gamma)
+    return q1tocl2, cl2toq1, cl1tocl2, cl2tocl1
+end
+
+function build_InterLattice_q2cl(A1::Approx1, A2::Approx2, edge_spins_len::Int64, gamma::Float64) where {Approx1<:HybridApprox, Approx2<:PureClassicalApprox}
+    q_spins = get_q_spins(A1)
+    assert(length(q_spins)==edge_spins_len)
+    cl_spins = get_cl_spins(A2)
+    L1 = A1.L
+    L2 = A2.L
+    q1tocl2 = SharedMatrix{Float64}(length(cl_spins), edge_spins_len)
+    fill!(q1tocl2, 0.0)
+    for q in eachindex(q_spins)
+        for cl in eachindex(cl_spins)
+            q1tocl2[cl, q] = get_value(L1, L2, q_spins[q], cl_spins[cl])*0.5*gamma
+        end
+    end
+    cl2toq1 = SharedMatrix{Float64}(edge_spins_len, length(cl_spins))
+    transpose!(cl2toq1,q1tocl2)
+    scale!(cl2toq1,-1.0)
+    q1tocl2 .*= sqrt(2^edge_spins_len+1)
+    return q1tocl2, cl2toq1
+end
+
+function build_InterLattice_cl2cl(A1::Approx1, A2::Approx2, gamma::Float64) where {Approx1<:HybridApprox, Approx2<:PureClassicalApprox}
+    cl_spins1 = get_cl_spins(A1)
+    cl_spins2 = get_cl_spins(A2)
+    L1 = A1.L
+    L2 = A2.L
+    cl1tocl2 = SharedMatrix{Float64}(length(cl_spins2), length(cl_spins1))
+    fill!(cl1tocl2, 0.0)
+    for cl2 in eachindex(cl_spins2)
+        for cl1 in eachindex(cl_spins1)
+            cl1tocl2[cl2, cl1] = get_value(L1, L2, cl_spins1[cl1], cl_spins2[cl2])*gamma
+        end
+    end
+    cl2tocl1 = SharedMatrix{Float64}(length(cl_spins1), length(cl_spins2))
+    transpose!(cl2tocl1, cl1tocl2)
+    return cl1tocl2, cl2tocl1
+end
+
+

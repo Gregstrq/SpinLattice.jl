@@ -153,3 +153,64 @@ function (HF::HybridRHSFunction)(t, u::T, du::T) where T<:ArrayPartition{Complex
     @. du.x[2][:,2] = u.x[2][3]*HF.cl_field.x[2][1] - u.x[2][1]*HF.cl_field.x[2][3]
     @. du.x[2][:,3] = u.x[2][1]*HF.cl_field.x[2][2] - u.x[2][2]*HF.cl_field.x[2][1]
 end
+
+
+############# Composite Approximation
+
+struct CompositeRHSFunction{RHSFunction1, RHSFunction2} <: AbstractRHSFunction
+    RHS1::RHSFunction1
+    RHS2::RHSFunction2
+    q1tocl2::SharedMatrix{Float64}
+    cl2toq1::SharedMatrix{Float64}
+    cl1tocl2::SharedMatrix{Float64}
+    cl2tocl1::SharedMatrix{Float64}
+end
+
+function build_RHS_function(A::CompositeApproximation{Approx1,Approx2}) where {Approx1<:HybridApprox, Approx2<:PureClassicalApprox}
+    RHS1 = build_RHS_function(A.A1)
+    RHS2 = build_RHS_function(A.A2)
+    q1tocl2, cl2toq1, cl1tocl2, cl2tocl1 = build_InterLattice_Couplings(A, size(RHS1.edgeSpinOperators)[1])
+    CompositeRHSFunction(RHS1,RHS2, q1tocl2, cl2toq1, cl1tocl2, cl2tocl1)
+end
+
+function (CF::CompositeRHSFunction)(t, u::T, du::T) where T<:ArrayPartition{Complex{Float64},Tuple{Array{Complex{Float64},1},VectorOfArray{Float64,2,Array{Array{Float64,1},1}},VectorOfArray{Float64,2,Array{Array{Float64,1},1}}}}
+    ############## Unpacking
+    HF = CF.RHS1
+    PCF = CF.RHS2
+    ############## Quantum averages
+    qnorm = norm(u.x[1])
+    @inbounds for sigma in 1:3
+        for q in 1:size(HF.edgeSpinOperators,1)
+            A_mul_B!(HF.q_temp_state, HF.edgeSpinOperators[q, sigma], u.x[1])
+            HF.average_values[q, sigma] = real(dot(HF.q_temp_state, u.x[1]))/qnorm
+        end
+    end
+    ############## Calculation of effective magnetic fields
+    @inbounds for sigma in 1:3
+        A_mul_B!(HF.Js[sigma], HF.cl2q, u.x[2][sigma], zero(Float64), HF.cl_field.x[1][sigma]) # quantum part
+        fill!(HF.cl_field.x[2][sigma], HF.hs[sigma]) # init L1 fields
+        fill!(PCF.cl_field[sigma], PCF.hs[sigma]) # init L2 fields
+        A_mul_B!(HF.Js[sigma], HF.IM, u.x[2][sigma], one(Float64), HF.cl_field.x[2][sigma]) # cl2cl L1 fields
+        A_mul_B!(PCF.Js[sigma], PCF.IM, u.x[3][sigma], one(Float64), PCF.cl_field[sigma]) # cl2cl L2 fields
+        A_mul_B!(HF.Js[sigma], HF.q2cl, HF.average_values[sigma], one(Float64), HF.cl_field.x[2][sigma]) #cl21 L1 fields#
+    end
+    #### Cross fields
+    A_mul_B!(PCF.Js[3], CF.cl2toq1, u.x[3][3], one(Float64), HF.cl_field.x[1][3])
+    A_mul_B!(PCF.Js[3], CF.cl2tocl1, u.x[3][3], one(Float64), HF.cl_field.x[2][3])
+    A_mul_B!(HF.Js[3], CF.q1tocl2, HF.average_values[3], one(Float64), PCF.cl_field[3])
+    A_mul_B!(HF.Js[3], CF.cl1tocl2, u.x[2][3], one(Float64), PCF.cl_field[3])
+    ############## Apply fields
+    A_mul_B!(du.x[1], HF.H, u.x[1])
+    @inbounds for sigma in 1:3
+        for q in 1:size(HF.edgeSpinOperators, 1)
+            A_mul_B!(HF.cl_field.x[1][q,sigma], HF.edgeSpinOperators[q, sigma], u.x[1], one(Complex{Float64}), du.x[1])
+        end
+    end
+    du.x[1] .*= -1im
+    @. du.x[2][:,1] = u.x[2][2]*HF.cl_field.x[2][3] - u.x[2][3]*HF.cl_field.x[2][2]
+    @. du.x[2][:,2] = u.x[2][3]*HF.cl_field.x[2][1] - u.x[2][1]*HF.cl_field.x[2][3]
+    @. du.x[2][:,3] = u.x[2][1]*HF.cl_field.x[2][2] - u.x[2][2]*HF.cl_field.x[2][1]
+    @. du.x[3][:,1] = u.x[3][2]*PCF.cl_field[3] - u.x[3][3]*PCF.cl_field[2]
+    @. du.x[3][:,2] = u.x[3][3]*PCF.cl_field[1] - u.x[3][1]*PCF.cl_field[3]
+    @. du.x[3][:,3] = u.x[3][1]*PCF.cl_field[2] - u.x[3][2]*PCF.cl_field[1]
+end

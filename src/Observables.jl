@@ -135,6 +135,10 @@ end
     return HO.c*HO.QO(v.x[1]) + HO.CO(v.x[2])
 end
 
+@inline function (HO::HybridObservable)(v::ArrayPartition{Complex{Float64},Tuple{Array{Complex{Float64},1},VectorOfArray{Float64,2,Array{Array{Float64,1},1}},VectorOfArray{Float64,2,Array{Array{Float64,1},1}}}})
+    return HO.c*HO.QO(v.x[1]) + HO.CO(v.x[2])
+end
+
 ########################################
 
 @inline build_Observable(A::ExactApprox, spins::Vector{NTuple{2,Int64}}, axis, name) = ExactObservable(A, spins, axis, name)
@@ -287,6 +291,8 @@ function calculateCorrFunc!(A::AbstractApproximation, saved_values::SavedValues,
         end
      end
 end
+
+@inline calculateCorrFunc!(A::CompositeApproximation, saved_values::SavedValues, rules::ConvRules, vals::CFVals, iter) = calculateCorrFunc!(A.A1, saved_values, rules, vals, iter)
 
 function convolute_d!(mean1::Vector{Float64}, mean2::Vector{Float64}, data::Vector{Float64})
     delta = 0

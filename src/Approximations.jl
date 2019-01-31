@@ -1,5 +1,7 @@
-abstract type AbstractApproximation{Ltype} end
+abstract type abstractApproximation end
+abstract type AbstractApproximation{Ltype} <: abstractApproximation end
 abstract type AbstractQuantumApproximation{Ltype} <: AbstractApproximation{Ltype} end
+abstract type AbstractCompositeApproximation{Approx1, Approx2} <: abstractApproximation end
 
 struct ExactApprox{Ltype} <: AbstractQuantumApproximation{Ltype}
     L::Ltype
@@ -77,6 +79,21 @@ end
     end
     HybridApprox(L, translate_indices(L, CartesianRange(tuple(q_block..., L.cell_size))), name)
 end
+
+struct CompositeApproximation{Approx1<:AbstractApproximation, Approx2<:AbstractApproximation} <: AbstractCompositeApproximation{Approx1, Approx2}
+    A1::Approx1
+    A2::Approx2
+    gamma::Float64
+    function CompositeApproximation(A1::Approx1, A2::Approx2, gamma::Float64) where {Approx1 <: AbstractApproximation, Approx2 <: AbstractApproximation}
+        L1 = A1.L
+        L2 = A2.L
+        assert(L1.basis_vectors==L2.basis_vectors)
+        assert(L1.lattice_dims==L2.lattice_dims)
+        new{Approx1, Approx2}(A1, A2, gamma)
+    end
+end
+
+
 
 #############################################
 get_string(Approx::A) where A<:ExactApprox = @sprintf("ul LD%s", "$(Approx.L.lattice_dims)")

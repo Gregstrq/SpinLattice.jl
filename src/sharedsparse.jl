@@ -24,9 +24,9 @@ end
 Base.size(S::SharedSparseMatrixCSC) = (S.m, S.n)
 
 function A_mul_B!(alpha::Number, A::SharedSparseMatrixCSC, B::StridedVecOrMat, beta::Number, C::StridedVecOrMat)
-    A.n == size(B, 1) || throw(DimensionMismatch())
-    A.m == size(C, 1) || throw(DimensionMismatch())
-    size(B, 2) == size(C, 2) || throw(DimensionMismatch())
+    A.n == size(B, 1) || throw(DimensionMismatch(@sprintf("A.n=%d B.m=%d", A.n, size(B,1))))
+    A.m == size(C, 1) || throw(DimensionMismatch(@sprintf("A.m=%d C.m=%d", A.m, size(C,1))))
+    size(B, 2) == size(C, 2) || throw(DimensionMismatch(@sprintf("B.n=%d C.n=%d", size(B,2), size(C,2))))
     nzv = A.nzval
     rv = A.rowval
     if beta != 1

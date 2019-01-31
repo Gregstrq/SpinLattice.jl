@@ -17,7 +17,7 @@ mutable struct Lattice{D,F,T,C}
     function Lattice(lattice_dims::NTuple{D,Int64}, Js::NTuple{3,Float64}, Jfunc::Interaction{F}, hs::NTuple{3,Float64}, basis_vectors::Matrix{T}, cell_vectors::Vector{Vector{T}}, basis_name::Symbol, cell_name::Symbol) where {D,F,T}
         Dim = length(lattice_dims)
         assert(det(basis_vectors) != 0)
-        if findfirst(cell_vectors, zeros(T,Dim))==0
+        if length(cell_vectors)==0
             push!(cell_vectors,zeros(T,Dim))
         end
         cell_size = length(cell_vectors)
@@ -67,7 +67,17 @@ function get_patch_vector(L::Lattice, spin1::S, spin2::S) where {S<:Tuple{Intege
     return get_vector(L, (sub2ind(L.lattice_dims, new_s2_cart...), spin2[2])) .- get_vector(L, (L.ccell_linear, spin1[2]))
 end
 
+function get_patch_vector(L1::Lattice, L2::Lattice, spin1::S, spin2::S) where {S<:Tuple{Integer,Integer}}
+    check_spin(L1, spin1)
+    check_spin(L2, spin2)
+    new_s2_cart = ind2sub(L1.lattice_dims, spin2[1]) .- ind2sub(L1.lattice_dims, spin1[1]) .+ L1.ccell_cartesian
+    new_s2_cart = mod.(new_s2_cart.-1, L1.lattice_dims).+1
+    return get_vector(L2, (sub2ind(L2.lattice_dims, new_s2_cart...), spin2[2])) .- get_vector(L1, (L1.ccell_linear, spin1[2]))
+end
+
 @inline get_patch_vector(L::Lattice, spin1::S, spin2::S) where {S<:Integer} = get_patch_vector(L, (spin1, 1), (spin2, 1))
+
+@inline get_patch_vector(L1::Lattice, L2::Lattice, spin1::S, spin2::S) where {S<:Integer} = get_patch_vector(L1, L2, (spin1, 1), (spin2, 1))
 
 function get_smallest_vector(L::Lattice, spin1::S, spin2::S) where {S<:Union{Integer,Tuple{Integer,Integer}}}
     check_spin(L, spin1)
@@ -89,6 +99,10 @@ end
 
 function get_value(L::Lattice, spin1::S, spin2::S) where {S<:Union{Integer,Tuple{Integer,Integer}}}
     return L.Jfunc(get_patch_vector(L, spin1, spin2))
+end
+
+function get_value(L1::Lattice, L2::Lattice, spin1::S, spin2::S) where {S<:Union{Integer,Tuple{Integer,Integer}}}
+    return L1.Jfunc(get_patch_vector(L1, L2, spin1, spin2))
 end
 
 function get_string(L::Ltype) where {Ltype<:Lattice}
