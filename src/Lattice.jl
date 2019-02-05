@@ -14,7 +14,7 @@ mutable struct Lattice{D,F,T,C, B}
     ccell_cartesian::NTuple{D,Int64}
     ccell_linear::Int64
     complex::Val{C}
-    function Lattice(lattice_dims::NTuple{D,Int64}, Js::NTuple{3,Float64}, Jfunc::Interaction{F}, hs::NTuple{3,Float64}, basis_vectors::Matrix{T}, cell_vectors::Vector{Vector{T}}, basis_name::Symbol, cell_name::Symbol, B::Bool) where {D,F,T}
+    function Lattice(lattice_dims::NTuple{D,Int64}, Js::NTuple{3,Float64}, Jfunc::Interaction{F}, hs::NTuple{3,Float64}, basis_vectors::Matrix{T}, cell_vectors::Vector{Vector{T}}, basis_name::Symbol, cell_name::Symbol, B::Bool = true) where {D,F,T}
         Dim = length(lattice_dims)
         assert(det(basis_vectors) != 0)
         if findfirst(cell_vectors, zeros(T,Dim))==0
