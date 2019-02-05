@@ -281,9 +281,9 @@ function _build_QuantumClassicalInteractions(A::HybridApprox)
     q2cl .*= sqrt(2^length(q_spins)+1)
     return edge_spins, q2cl, cl2q
 end
-@inline build_QuantumClassicalInteractions(A::HybridApprox{Lattice{D,MDI{D2},T,C}}) where {D,D2,T,C} = _build_QuantumClassicalInteractions(A)
+@inline build_QuantumClassicalInteractions(A::HybridApprox{Lattice{D,MDI{D2},T,C,B}}) where {D,D2,T,C,B} = _build_QuantumClassicalInteractions(A)
 
-function build_QuantumClassicalInteractions(A::HybridApprox{Lattice{D,typeof(nearest_neighbours),T,C}}) where {D,T,C}
+function build_QuantumClassicalInteractions(A::HybridApprox{Lattice{D,typeof(nearest_neighbours),T,C,B}}) where {D,T,C,B}
     edge_spins = Set{Float64}()
     q_spins = get_q_spins(A)
     cl_spins = get_cl_spins(A)

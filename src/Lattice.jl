@@ -1,4 +1,4 @@
-mutable struct Lattice{D,F,T,C}
+mutable struct Lattice{D,F,T,C, B}
     lattice_dims::NTuple{D,Int64}
     basis_vectors::Matrix{T}
     cell_vectors::Vector{Vector{T}}
@@ -14,7 +14,7 @@ mutable struct Lattice{D,F,T,C}
     ccell_cartesian::NTuple{D,Int64}
     ccell_linear::Int64
     complex::Val{C}
-    function Lattice(lattice_dims::NTuple{D,Int64}, Js::NTuple{3,Float64}, Jfunc::Interaction{F}, hs::NTuple{3,Float64}, basis_vectors::Matrix{T}, cell_vectors::Vector{Vector{T}}, basis_name::Symbol, cell_name::Symbol) where {D,F,T}
+    function Lattice(lattice_dims::NTuple{D,Int64}, Js::NTuple{3,Float64}, Jfunc::Interaction{F}, hs::NTuple{3,Float64}, basis_vectors::Matrix{T}, cell_vectors::Vector{Vector{T}}, basis_name::Symbol, cell_name::Symbol, B::Bool = true) where {D,F,T}
         Dim = length(lattice_dims)
         assert(det(basis_vectors) != 0)
         if length(cell_vectors)==0
@@ -34,16 +34,16 @@ mutable struct Lattice{D,F,T,C}
         cc = hs[2]!=0.
         ccell_cartesian = div.(lattice_dims,2).+1
         ccell_linear = sub2ind(lattice_dims, ccell_cartesian...)
-        new{D,F,T,cc}(lattice_dims, basis_vectors, cell_vectors, increments, Js, hs, Jfunc, cell_size, tot_cell_num, tot_spin_num, basis_name, cell_name, ccell_cartesian, ccell_linear, Val{cc}())
+        new{D,F,T,cc,B}(lattice_dims, basis_vectors, cell_vectors, increments, Js, hs, Jfunc, cell_size, tot_cell_num, tot_spin_num, basis_name, cell_name, ccell_cartesian, ccell_linear, Val{cc}())
     end
 end
 
-function Lattice(dims, Js, Jfunc, hs, T::Type = Int64)
+function Lattice(dims, Js, Jfunc, hs, T::Type = Int64, B::Bool = true)
     basis_vectors = eye(T, length(dims), length(dims))
     cell_vectors = Vector{Vector{T}}()
-    Lattice(dims, Js, Jfunc, hs, basis_vectors, cell_vectors, :cubic, :simple)
+    Lattice(dims, Js, Jfunc, hs, basis_vectors, cell_vectors, :cubic, :simple, B)
 end
-Lattice(dims, Js, Jfunc, hs, basis_vector::Matrix{T}, basis_name::Symbol) where {T} = Lattice(dims, Js, Jfunc, hs, basis_vector, Vector{Vector{T}}(), basis_name, :simple)
+Lattice(dims, Js, Jfunc, hs, basis_vector::Matrix{T}, basis_name::Symbol, B::Bool = true) where {T} = Lattice(dims, Js, Jfunc, hs, basis_vector, Vector{Vector{T}}(), basis_name, :simple, B)
 
 function get_vector(L::Lattice, spin::I) where {I}
     L.basis_vectors*collect(ind2sub(L.lattice_dims, spin))
@@ -79,6 +79,12 @@ end
 
 @inline get_patch_vector(L1::Lattice, L2::Lattice, spin1::S, spin2::S) where {S<:Integer} = get_patch_vector(L1, L2, (spin1, 1), (spin2, 1))
 
+function get_simple_vector(L::Lattice, spin1::S, spin2::S) where {S<:Union{Integer,Tuple{Integer,Integer}}}
+    check_spin(L, spin1)
+    check_spin(L, spin2)
+    return get_vector(L, spin1) .- get_vector(L, spin2)
+end
+
 function get_smallest_vector(L::Lattice, spin1::S, spin2::S) where {S<:Union{Integer,Tuple{Integer,Integer}}}
     check_spin(L, spin1)
     check_spin(L, spin2)
@@ -97,8 +103,12 @@ function get_smallest_vector(L::Lattice, spin1::S, spin2::S) where {S<:Union{Int
     return smallest
 end
 
-function get_value(L::Lattice, spin1::S, spin2::S) where {S<:Union{Integer,Tuple{Integer,Integer}}}
+function get_value(L::Lattice{D,F,T,C,true}, spin1::S, spin2::S) where {D, F, T, C, S<:Union{Integer,Tuple{Integer,Integer}}}
     return L.Jfunc(get_patch_vector(L, spin1, spin2))
+end
+
+function get_value(L::Lattice{D,F,T,C,false}, spin1::S, spin2::S) where {D, F, T, C, S<:Union{Integer,Tuple{Integer,Integer}}}
+    return L.Jfunc(get_simple_vector(L, spin1, spin2))
 end
 
 function get_value(L1::Lattice, L2::Lattice, spin1::S, spin2::S) where {S<:Union{Integer,Tuple{Integer,Integer}}}

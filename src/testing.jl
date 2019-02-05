@@ -99,34 +99,34 @@ end
 @inline default_links(L::Lattice{D}, M::Model) where {D, Model<:Union{Clustered,Hybrid}} = (:all,:central)
 @inline default_links(L::Lattice{3}, M::Hybrid) = (:all, SpinArray(L, [(2,2,2)], :central))
 
-function julia_initialize(M::Model, dims::NTuple{D,Int64}, Js::NTuple{3,Float64}, I::Interaction{F}, hs::NTuple{3,Float64}) where {D, Model<:Union{Exact,PureClassical}} where F
-    L = Lattice(dims, Js, I, hs)
+function julia_initialize(M::Model, dims::NTuple{D,Int64}, Js::NTuple{3,Float64}, I::Interaction{F}, hs::NTuple{3,Float64}, B::Bool=true) where {D, Model<:Union{Exact,PureClassical}} where F
+    L = Lattice(dims, Js, I, hs, Int64, B)
     A = build_Approximation(M, L)
     RHS = build_RHS_function(A)
     rules, OSET = set_CorrFuncs(A, default_links(L,M))
     return A, RHS, OSET, rules
 end
-@inline function julia_initialize(M::PureClassical, dims::NTuple{D,Int64}, Js::NTuple{3,Float64}, I::Interaction{F}, hs::NTuple{3,Float64}, q_spins::Vector{NTuple{3,Int64}}, middle_spins::Vector{NTuple{3,Int64}}) where {D, F}
-    julia_initialize(M, dims, Js, I, hs)
+@inline function julia_initialize(M::PureClassical, dims::NTuple{D,Int64}, Js::NTuple{3,Float64}, I::Interaction{F}, hs::NTuple{3,Float64}, q_spins::Vector{NTuple{3,Int64}}, middle_spins::Vector{NTuple{3,Int64}}, B::Bool=true) where {D, F}
+    julia_initialize(M, dims, Js, I, hs, Int64, B)
 end
-function julia_initialize(M::Exact, dims::NTuple{2,Int64}, Js::NTuple{3,Float64}, I::Interaction{typeof(nearest_neighbours)}, hs::NTuple{3,Float64})
-    L = Lattice((4,4), Js, I, hs)
+function julia_initialize(M::Exact, dims::NTuple{2,Int64}, Js::NTuple{3,Float64}, I::Interaction{typeof(nearest_neighbours)}, hs::NTuple{3,Float64}, B::Bool=true)
+    L = Lattice((4,4), Js, I, hs, Int64, B)
     A = build_Approximation(M, L)
     RHS = build_RHS_function(A)
     rules, OSET = set_CorrFuncs(A, default_links(L,M))
     return A, RHS, OSET, rules
 end
 
-function julia_initialize(M::Model, dims::NTuple{D,Int64}, Js::NTuple{3,Float64}, I::Interaction{F}, hs::NTuple{3,Float64}) where {D, Model<:Union{Clustered,Hybrid}, F}
-    L = Lattice(dims, Js, I, hs)
+function julia_initialize(M::Model, dims::NTuple{D,Int64}, Js::NTuple{3,Float64}, I::Interaction{F}, hs::NTuple{3,Float64}, B::Bool=true) where {D, Model<:Union{Clustered,Hybrid}, F}
+    L = Lattice(dims, Js, I, hs, Int64, B)
     A = build_Approximation(M, L, get_block(Val{D}))
     RHS = build_RHS_function(A)
     rules, OSET = set_CorrFuncs(A, default_links(L,M))
     return A, RHS, OSET, rules
 end
 
-function julia_initialize(M::Hybrid, dims::NTuple{3,Int64}, Js::NTuple{3,Float64}, I::Interaction{F}, hs::NTuple{3,Float64}) where F
-    L = Lattice(dims, Js, I, hs)
+function julia_initialize(M::Hybrid, dims::NTuple{3,Int64}, Js::NTuple{3,Float64}, I::Interaction{F}, hs::NTuple{3,Float64}, B::Bool=true) where F
+    L = Lattice(dims, Js, I, hs, Int64, B)
     name, q_spins, middle_spins = d3block
     sarray = SpinArray(L, q_spins, name)
     A = build_Approximation(M, L, sarray)
@@ -134,8 +134,8 @@ function julia_initialize(M::Hybrid, dims::NTuple{3,Int64}, Js::NTuple{3,Float64
     rules, OSET = set_CorrFuncs(A, default_links(L,M))
     return A, RHS, OSET, rules
 end
-function julia_initialize(M::Hybrid, dims::NTuple{3,Int64}, Js::NTuple{3,Float64}, I::Interaction{F}, hs::NTuple{3,Float64}, q_spins::Vector{NTuple{3,Int64}}, middle_spins::Vector{NTuple{3,Int64}}) where F
-    L = Lattice(dims, Js, I, hs)
+function julia_initialize(M::Hybrid, dims::NTuple{3,Int64}, Js::NTuple{3,Float64}, I::Interaction{F}, hs::NTuple{3,Float64}, q_spins::Vector{NTuple{3,Int64}}, middle_spins::Vector{NTuple{3,Int64}}, B::Bool=true) where F
+    L = Lattice(dims, Js, I, hs, Int64, B)
     name = :column
     sarray = SpinArray(L, q_spins, name)
     A = build_Approximation(M, L, sarray)
@@ -235,9 +235,9 @@ function convert_state(A::ExactApprox, sp)
     return VectorOfArray(v)
 end
 
-function test_operators(M::Exact, dims::NTuple{D,Int64}, Js::NTuple{3,Float64}, I::Interaction{F}, hs::NTuple{3,Float64}) where {D, F}
-    A,RHS,OSET, rules = julia_initialize(M, dims, Js, I, hs)
-    sp = py_initialize(M, dims, Js, I, hs)
+function test_operators(M::Exact, dims::NTuple{D,Int64}, Js::NTuple{3,Float64}, I::Interaction{F}, hs::NTuple{3,Float64}, B::Bool=true) where {D, F}
+    A,RHS,OSET, rules = julia_initialize(M, dims, Js, I, hs, B)
+    sp = py_initialize(M, dims, Js, I, hs; cb=B)
     H_j = jlmat2pymat(RHS.H)
     Ms_j = Dict()
     for Obs in OSET.Observables
@@ -502,9 +502,9 @@ function convert_state(A::PureClassicalApprox, sp)
     return u0
 end
 
-function test_operators(M::PureClassical, dims::NTuple{D,Int64}, Js::NTuple{3,Float64}, I::Interaction{F}, hs::NTuple{3,Float64}) where {D, F}
-    A,RHS,OSET, rules = julia_initialize(M, dims, Js, I, hs)
-    sp = py_initialize(M, dims, Js, I, hs)
+function test_operators(M::PureClassical, dims::NTuple{D,Int64}, Js::NTuple{3,Float64}, I::Interaction{F}, hs::NTuple{3,Float64}, B::Bool=true) where {D, F}
+    A,RHS,OSET, rules = julia_initialize(M, dims, Js, I, hs, B)
+    sp = py_initialize(M, dims, Js, I, hs; cb=B)
     ops_j = Dict()
     for Obs in OSET.Observables
         index = axis_dict[Obs.axis]-1
@@ -638,6 +638,20 @@ function test_all()
             print(model,"\n")
             test_operators(model, L...)
             gc()
+        end
+    end
+end
+
+function test_boundary()
+    Models = [Exact(), PureClassical()]
+    cbs = [true, false]
+    for model in Models
+        for L in L1d[1:4]
+            for cb in cbs
+                print(model, " cb=", cb,"\n")
+                test_operators(model, L...,cb)
+                gc()
+            end
         end
     end
 end

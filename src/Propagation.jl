@@ -239,14 +239,32 @@ end
 export parallel_simulate
 
 function parse_dir(dirname::AbstractString = pwd())
+    blacklist = ["aggregate.jld", "aggregate1.jld", "aggregate2.jld"]
     corfs = Vector{CFVals}()
     Ns = Vector{Int64}()
     for filename in readdir(dirname)
         file = joinpath(dirname, filename)
-        if filename != "aggregate.jld" && isfile(file) && file[end-3:end] == ".jld"
+        if !(filename in blacklist) && isfile(file) && file[end-3:end] == ".jld"
             corf, Ntr = load_data(file)
             push!(corfs, corf)
             push!(Ns, Ntr)
+        end
+    end
+    return corfs, Ns
+end
+
+function parse_dir(dirlist::Tuple{AbstractString,Vararg{AbstractString}})
+    blacklist = ["aggregate.jld", "aggregate1.jld", "aggregate2.jld"]
+    corfs = Vector{CFVals}()
+    Ns = Vector{Int64}()
+    for dirname in dirlist
+        for filename in readdir(dirname)
+            file = joinpath(dirname, filename)
+            if !(filename in blacklist) && isfile(file) && file[end-3:end] == ".jld"
+                corf, Ntr = load_data(file)
+                push!(corfs, corf)
+                push!(Ns, Ntr)
+            end
         end
     end
     return corfs, Ns
@@ -256,6 +274,13 @@ function aggregate(dirname::AbstractString = pwd())
     corfs, Ns = parse_dir(dirname)
     return aggregate(corfs, Ns, dirname)
 end
+
+function aggregate(dirlist::Tuple{AbstractString,Vararg{AbstractString}}, destdir::AbstractString = pwd())
+    corfs, Ns = parse_dir(dirlist)
+    mkpath(destdir)
+    return aggregate(corfs, Ns, destdir)
+end
+
 
 function aggregate(corfs::Vector{CFVals}, Ns::Vector{Int64}, dirname::AbstractString = pwd(), agrname = "aggregate.jld")
     aggregate = zeros(first(corfs))
@@ -309,5 +334,15 @@ function aggregate2(dirname::AbstractString = pwd())
     l1, l2 = separate(Ns)
     agr1, Ntot1 = aggregate(corfs[l1], Ns[l1], dirname, "aggregate1.jld")
     agr2, Ntot2 = aggregate(corfs[l2], Ns[l2], dirname, "aggregate2.jld")
+    return agr1, Ntot1, agr2, Ntot2
+end
+
+
+function aggregate2(dirlist::Tuple{AbstractString,Vararg{AbstractString}}, destdir::AbstractString = pwd())
+    corfs, Ns = parse_dir(dirlist)
+    l1, l2 = separate(Ns)
+    mkpath(destdir)
+    agr1, Ntot1 = aggregate(corfs[l1], Ns[l1], destdir, "aggregate1.jld")
+    agr2, Ntot2 = aggregate(corfs[l2], Ns[l2], destdir, "aggregate2.jld")
     return agr1, Ntot1, agr2, Ntot2
 end
