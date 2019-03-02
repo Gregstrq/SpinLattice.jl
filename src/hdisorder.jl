@@ -109,9 +109,9 @@ end
 function randomDState(A::HybridApprox, p::Float64, RNG::AbstractRNG = Base.GLOBAL_RNG)
     Dh = 2^A.q_num
     cl_state = random_cl_state(A.cl_num, RNG)
-    discarded = randsubseq(RNG, collect(1:length(cl_state)),p)
+    discarded = randsubseq(RNG, collect(1:A.cl_num), p)
     for i in discarded
-        cl_state[:,i] .= 0.0
+        cl_state[i,:] .= 0.0
     end
     return ArrayPartition(random_q_state(Dh, RNG), cl_state)
 end
@@ -119,9 +119,9 @@ end
 function randomDState(A::CompositeApproximation{T1,T2}, p::Float64, RNG::AbstractRNG = Base.GLOBAL_RNG) where {T1<:HybridApprox, T2<:PureClassicalApprox}
     Dh = 2^A.A1.q_num
     cl_state = random_cl_state(A.A1.cl_num, RNG)
-    discarded = randsubseq(RNG, collect(1:length(cl_state)),p)
+    discarded = randsubseq(RNG, collect(1:A.A1.cl_num), p)
     for i in discarded
-        cl_state[:,i] .= 0.0
+        cl_state[i,:] .= 0.0
     end
     ArrayPartition(random_q_state(Dh, RNG), cl_state, randomState(A.A2, RNG))
 end

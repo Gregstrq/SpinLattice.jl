@@ -199,7 +199,19 @@ function build_ClassicalInteractions(L::Lattice{D,MDI{D2},T,C}, cl_spins::Vector
     print(issymmetric(IM),"\n")
     return Symmetric(IM)::Symmetric{Float64, SharedMatrix{Float64}}
 end
+function build_ClassicalInteractions(L::Lattice{D,MDI{D2},T,C}, cl_spins::Vector{Tuple{Int64,Int64}}, factor::Float64) where {D,D2,T,C}
+    cl_num = length(cl_spins)
+    IM = SharedMatrix{Float64}((cl_num, cl_num))
+    fill!(IM,0.0)
+    for i in 1:cl_num-1 for j in i+1:cl_num
+        IM[i,j] = get_value(L, cl_spins[i], cl_spins[j])*factor
+        IM[j,i] = IM[i,j]
+    end end
+    print(issymmetric(IM),"\n")
+    return Symmetric(IM)::Symmetric{Float64, SharedMatrix{Float64}}
+end
 build_ClassicalInteractions(A::Approx) where Approx<:Union{PureClassicalApprox, HybridApprox} = build_ClassicalInteractions(A.L, get_cl_spins(A))
+build_ClassicalInteractions(A::PureClassicalApprox, factor::Float64) = build_ClassicalInteractions(A.L, get_cl_spins(A), factor)
 
 @inline build_InterClusterInteractions(A::ClusteredApprox) = _build_InterClusterInteractions(A)
 function build_InterClusterInteractions(A::ClusteredApprox{Lattice{D,typeof(nearest_neighbours),T,C}}) where {D,T,C}
@@ -355,5 +367,3 @@ function build_InterLattice_cl2cl(A1::Approx1, A2::Approx2, gamma::Float64) wher
     transpose!(cl2tocl1, cl1tocl2)
     return cl1tocl2, cl2tocl1
 end
-
-

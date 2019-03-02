@@ -88,6 +88,11 @@ function build_RHS_function(A::Approx) where Approx<:PureClassicalApprox
     IM = build_ClassicalInteractions(A)
     PureClassicalRHSFunction{typeof(IM)}(A.L.Js, A.L.hs, IM, cl_field)
 end
+function build_RHS_function(A::PureClassicalApprox, factor::Float64)
+    cl_field = deepcopy(randomState(A))
+    IM = build_ClassicalInteractions(A, factor)
+    PureClassicalRHSFunction{typeof(IM)}(A.L.Js, A.L.hs, IM, cl_field)
+end
 
 function (PCF::PureClassicalRHSFunction)(t, u::T, du::T) where T<:VectorOfArray{Float64, 2, Vector{Vector{Float64}}}
     @inbounds for sigma in 1:3
@@ -168,7 +173,7 @@ end
 
 function build_RHS_function(A::CompositeApproximation{Approx1,Approx2}) where {Approx1<:HybridApprox, Approx2<:PureClassicalApprox}
     RHS1 = build_RHS_function(A.A1)
-    RHS2 = build_RHS_function(A.A2)
+    RHS2 = build_RHS_function(A.A2, A.gamma^2)
     q1tocl2, cl2toq1, cl1tocl2, cl2tocl1 = build_InterLattice_Couplings(A, size(RHS1.edgeSpinOperators)[1])
     CompositeRHSFunction(RHS1,RHS2, q1tocl2, cl2toq1, cl1tocl2, cl2tocl1)
 end
