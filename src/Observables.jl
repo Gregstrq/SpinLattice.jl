@@ -252,7 +252,9 @@ function set_CorrFuncs(A::AbstractApproximation, links::NTuple{D, NTuple{2,Union
     end
     return ConvRules(links_str, rules), OSET
 end
-@inline set_CorrFuncs(A::AbstractApproximation, links::NTuple{2,Union{Symbol, SpinArray}} = (:all,:all), axes::Vector{Symbol} = [:x, :y,:z]) = set_CorrFuncs(A, tuple(links), axes)
+set_CorrFuncs(A::CompositeApproximation, links::NTuple{D, NTuple{2,Union{Symbol, SpinArray}}}, axes::Vector{Symbol}) where D = set_CorrFuncs(A.A1, links, axes)
+
+@inline set_CorrFuncs(A::abstractApproximation, links::NTuple{2,Union{Symbol, SpinArray}} = (:all,:all), axes::Vector{Symbol} = [:x, :y,:z]) = set_CorrFuncs(A, tuple(links), axes)
 
 function calculateCorrFunc!(A::ExactApprox, saved_values::SavedValues, rules::ConvRules, vals::CFVals)
     savevals = saved_values.saveval

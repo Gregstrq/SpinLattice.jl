@@ -9,8 +9,13 @@ struct LProblem{Approx, SCB, PP}
     delimiter::Int64
 end
 
-function build_problem(L::Lattice, M::AbstractModel, args...; Tmax::Float64 = 10.0, tstep::Float64 = 2.0^-7, delimiter::Int64 = 10, links = [(:all,:all)], axes = [:x, :y, :z])
+
+function build_problem(L::Lattice, M::AbstractModel, args...; kwargs...)
     A = build_Approximation(M, L, args...)
+    return build_problem(A; kwargs...)
+end
+
+function build_problem(A::abstractApproximation; Tmax::Float64 = 10.0, tstep::Float64 = 2.0^-7, delimiter::Int64 = 10, links = [(:all,:all)], axes = [:x, :y, :z])
     ARHS = build_RHS_function(A)
     rules, OSET = set_CorrFuncs(A, links, axes)
     l = length(OSET.Observables)
