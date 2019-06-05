@@ -294,19 +294,20 @@ function aggregate(corfs::Vector{CFVals}, Ns::Vector{Int64}, dirname::AbstractSt
         aggregate.data   .= aggregate.data  .+ corfs[i].data .* Ns[i]
         aggregate.errors .= aggregate.errors .+ corfs[i].errors
     end
-    for j = 2:length(corfs), i = 1:j
-        coef = Ns[i]*Ns[j]/N_total
-        aggregate.errors .= aggregate.errors .+ (corfs[i].data - corfs[j].data).^2 .* coef
+    aggregate.data .= aggregate.data .* (1.0/N_total)
+    for i = 1:length(corfs)
+        aggregate.errors .= aggregate.errors .+ (corfs[i].data - aggregate.data).^2 .* Ns[i]
     end
-    correction = N_total/(N_total - 1)
+    divisor = 1.0/(N_total * (N_total - 1))
     for i in 1:length(aggregate.data)
-        coef = 1/aggregate.data[1,i]
-        aggregate.data[:,i]   .= aggregate.data[:,i] .* coef
-        aggregate.errors[:,i] .= sqrt.(aggregate.errors[:,i] .* correction) .* coef
+        coef = 1.0/aggregate.data[1,i]
+        aggregate.data[:,i] .= aggregate.data[:,i] .* coef
+        aggregate.errors[:, i] .= sqrt.(aggregate.errors[:,i] .* divisor) .* coef
     end
     save_data(joinpath(dirname, agrname), aggregate, N_total)
     return aggregate, N_total
 end
+
 
 function separate(Ns::Vector{Int64})
     i = length(Ns)
