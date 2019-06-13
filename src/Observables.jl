@@ -193,15 +193,33 @@ struct CFVals
     errors::VectorOfArray{Float64, 2, Vector{Vector{Float64}}}
 end
 
+struct CFVals0
+    str_vec::Vector{String}
+    ts::Vector{Float64}
+    data::VectorOfArray{Float64, 2, Vector{Vector{Float64}}}
+end
+
+struct CFArray
+    str_vec::Vector{String}
+    ts::Vector{Float64}
+    datas::Dict{String, Matrix{Float64}}
+end
+
 import Base.similar
 import Base.zeros
 
 @inline similar(cf::CFVals) = CFVals(copy(cf.str_vec), copy(cf.ts), similar(cf.data), similar(cf.errors))
+@inline similar(cf0::CFVals0) = CFVals0(copy(cf0.str_vec), copy(cf0.ts), similar(cf0.data))
 
 function zeros(cf::CFVals)
     temp = similar(cf)
     fill!(temp.data, 0.0)
     fill!(temp.errors, 0.0)
+    return temp
+end
+function zeros(cf0::CFVals0)
+    temp = similar(cf0)
+    fill!(temp.data, 0.0)
     return temp
 end
 
@@ -210,6 +228,10 @@ function CFVals(rules::ConvRules, ts::Vector{Float64})
     data = VectorOfArray([zeros(length(ts)) for rule in get_rules(rules)])
     errors = VectorOfArray([zeros(length(ts)) for rule in get_rules(rules)])
     CFVals(rules.str_vec, ts, data, errors)
+end
+function CFVals0(rules::ConvRules, ts::Vector{Float64})
+    data = VectorOfArray([zeros(length(ts)) for rule in get_rules(rules)])
+    CFVals0(rules.str_vec, ts, data)
 end
 
 function make_oset(A::AbstractApproximation, links::NTuple{D, NTuple{2,Union{Symbol, SpinArray}}}, axes::Vector{Symbol}) where D
@@ -294,7 +316,34 @@ function calculateCorrFunc!(A::AbstractApproximation, saved_values::SavedValues,
      end
 end
 
-@inline calculateCorrFunc!(A::CompositeApproximation, saved_values::SavedValues, rules::ConvRules, vals::CFVals, iter) = calculateCorrFunc!(A.A1, saved_values, rules, vals, iter)
+function calculateCorrFunc!(A::AbstractApproximation, saved_values::SavedValues, rules::ConvRules, vals::CFVals0, iter)
+     meanvals = Vector{Vector{Float64}}()
+     savevals = saved_values.saveval
+     l = length(savevals)
+     nmeans = length(savevals[1])
+     for m in Base.OneTo(nmeans)
+         v = Vector{Float64}(l)
+         for i in Base.OneTo(l)
+             v[i] = savevals[i][m]
+         end
+         push!(meanvals, v)
+     end
+     #####
+     data = vals.data
+     rule = get_rules(rules)
+     for i in eachindex(rule)
+        r1 = rule[i][1]
+        r2 = rule[i][2]
+        if r1 == r2
+            convolute_s!(meanvals[r1], data[i], iter)
+        else
+            convolute_d!(meanvals[r1], meanvals[r2], data[i], iter)
+        end
+     end
+end
+
+
+@inline calculateCorrFunc!(A::CompositeApproximation, saved_values::SavedValues, rules::ConvRules, vals::T, iter) where {T<:Union{CFVals, CFVals0}} = calculateCorrFunc!(A.A1, saved_values, rules, vals, iter)
 
 function convolute_d!(mean1::Vector{Float64}, mean2::Vector{Float64}, data::Vector{Float64})
     delta = 0
@@ -349,6 +398,32 @@ function convolute_s!(mean::Vector{Float64}, data::Vector{Float64}, errors::Vect
         data[delta] += d1/iter
         d2 = (val-data[delta])
         errors[delta] += d1*d2
+        delta += 1
+    end
+end
+
+
+function convolute_d!(mean1::Vector{Float64}, mean2::Vector{Float64}, data::Vector{Float64}, iter)
+    delta = 1
+    stop = length(mean1)
+    maxDelta = length(data)
+    @inbounds while delta <= maxDelta
+        stmd = stop-delta+1
+        val = dot(mean1, 1:stmd, mean2, delta:stop)
+        val += dot(mean2, 1:stmd, mean1, delta:stop)
+        val *= 0.5/stmd
+        data[delta] = val
+        delta += 1
+    end
+end
+
+function convolute_s!(mean::Vector{Float64}, data::Vector{Float64}, iter)
+    delta = 1
+    stop = length(mean)
+    maxDelta = length(data)
+    @inbounds while delta <= maxDelta
+        stmd = stop-delta+1
+        data[delta] = dot(mean, 1:stmd, mean, delta:stop)/stmd
         delta += 1
     end
 end

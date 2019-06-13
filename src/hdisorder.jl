@@ -1,4 +1,4 @@
-function dh_simulation(LP::LProblem{T}, p::Float64, nTrials::Int64, alg::OrdinaryDiffEqAlgorithm, logger::Logger{T1,T2} = Logger{:no, :cmd}(), interval::Int64 = 1, offset::Int64 = 0; links = (:all,:all), axes = [:x, :y, :z], kwargs...) where {T<:HybridApprox,T1,T2}
+function dh_simulation(LP::AbstractLProblem{T}, p::Float64, nTrials::Int64, alg::OrdinaryDiffEqAlgorithm, logger::Logger{T1,T2} = Logger{:no, :cmd}(), interval::Int64 = 1, offset1::Int64 = 0; links = (:all,:allq), axes = [:x, :y, :z], kwargs...) where {T<:HybridApprox,T1,T2}
     assert(nTrials > 0)
     RNGarray = initRNG(nprocs()+1)
     path_part = @sprintf("Dis Tm%.2f dt%.3f del%d Obs%s Pr%.3f/", LP.Tmax, LP.tstep, LP.delimiter, get_string(LP.rules.str_vec), p)
@@ -11,7 +11,7 @@ function dh_simulation(LP::LProblem{T}, p::Float64, nTrials::Int64, alg::Ordinar
     for thread = (offset+1):(offset+nprocs())
         push!(filenames, get_string(nTrials, thread, alg))
     end
-    log_o, save_os = set_Logging(logger, LP.A, path_part, filenames)
+    log_o, save_os = set_Logging(LP, nTrials, logger, LP.A, path_part, filenames)
     cf_vals0 = LP.cf_vals
     @sync for i in workers()
         @spawnat i global cf_vals = cf_vals0
@@ -44,10 +44,14 @@ function dh_simulation(LP::LProblem{T}, p::Float64, nTrials::Int64, alg::Ordinar
     end
 end
 
-function dh_simulation(A::CompositeApproximation{T1,T2}, p::Float64, nTrials::Int64, alg::OrdinaryDiffEqAlgorithm, logger::Logger{T3,T4} = Logger{:cluster, :file}, interval::Int64 = 1, offset1::Int64 = 0, Tmax::Float64 = 3.5, tstep::Float64 = 2.0^-7, delimiter::Int64 = 10, links = (:all,:allq), axes = [:x]; kwargs...) where {T1<:HybridApprox, T2<:PureClassicalApprox, T3,T4}
+function dh_simulation(LP::AbstractLProblem{Approx}, p::Float64, nTrials::Int64, alg::OrdinaryDiffEqAlgorithm, logger::Logger{T1,T2} = Logger{:no, :cmd}(), interval::Int64 = 1, offset1::Int64 = 0; links = (:all,:allq), axes = [:x, :y, :z], kwargs...) where {Approx <: CompositeApproximation{<:HybridApprox, <:PureClassicalApprox}, T1,T2}
+    A = LP.A
+    Tmax = LP.Tmax
+    delimiter = LP.delimiter
+    tstep = LP.tstep
     A_temp = CompositeApproximation(HybridApprox(A.A1.L, copy(A.A1.q_spins), A.A1.name), A.A2, A.gamma)
-    rules, OSET = set_CorrFuncs(A.A1, links, axes)
-    l = length(OSET.Observables)
+    #rules, OSET = set_CorrFuncs(A, links, axes)
+    l = LP.cb.affect!.save_func.len
     tspan = (0.0, Tmax*delimiter)
     t_means = collect(0.0:tstep:(Tmax*delimiter))
     t_cors = collect(0.0:tstep:Tmax)
@@ -55,13 +59,13 @@ function dh_simulation(A::CompositeApproximation{T1,T2}, p::Float64, nTrials::In
     ##############################
     assert(nTrials > 0)
     RNGarray = initRNG(nprocs()+1)
-    path_part = @sprintf("Dis Tm%.2f dt%.3f del%d Obs%s Pr%.3f/", Tmax, tstep, delimiter, get_string(rules.str_vec), p)
+    path_part = @sprintf("Dis Tm%.2f dt%.3f del%d Obs%s Pr%.3f/", Tmax, tstep, delimiter, get_string(LP.rules.str_vec), p)
     filenames = Vector{String}()
     for thread = (offset1+1):(offset1+nprocs())
         push!(filenames, get_string(nTrials, thread, alg))
     end
-    log_o, save_os = set_Logging(logger, A, path_part, filenames)
-    cf_vals0 = CFVals(rules, t_cors)
+    log_o, save_os = set_Logging(LP, nTrials, logger, A, path_part, filenames)
+    cf_vals0 = LP.cf_vals
     @sync for i in workers()
         @spawnat i global cf_vals = cf_vals0
     end
@@ -97,7 +101,7 @@ end
 
 
 
-function dh_run(iter::Int64, A::abstractApproximation, ARHS::AbstractRHSFunction, OSET::ObservablesSet, rules::ConvRules, t_means::Vector{Float64}, saved_values::SavedValues, tspan::NTuple{2, Float64}, p::Float64, cf_vals::CFVals, alg::OrdinaryDiffEqAlgorithm, save_o::Saver{:file}, RNG::AbstractRNG; abstol_i = 1e-14, reltol_i = 1e-6, kwargs...)
+function dh_run(iter::Int64, A::abstractApproximation, ARHS::AbstractRHSFunction, OSET::ObservablesSet, rules::ConvRules, t_means::Vector{Float64}, saved_values::SavedValues, tspan::NTuple{2, Float64}, p::Float64, cf_vals::T, alg::OrdinaryDiffEqAlgorithm, save_o::Saver, RNG::AbstractRNG; abstol_i = 1e-14, reltol_i = 1e-6, kwargs...) where T <: Union{CFVals, CFVals0}
     u0 = randomDState(A, p, RNG)
     prob = ODEProblem(ARHS, u0, tspan)
     cb = SavingCallback(OSET, saved_values, u0; saveat = t_means)
