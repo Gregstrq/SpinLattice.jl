@@ -92,6 +92,7 @@ end
 
 @inline save_data(s::Saver{:no}, cf_vals::CFVals, iter = 0) = nothing
 @inline save_data(s::Saver{:file}, cf_vals::CFVals, iter) = save_data(s.filename, cf_vals, iter)
+@inline save_data(s::Saver{:no}, cf_vals::CFVals0, iter) = nothing
 @inline save_data(s::Saver{:fullfile}, cf_vals0::CFVals0, iter) = save_data!(s.filename, cf_vals0, iter)
 function save_data(filename::AbstractString, cf_vals::CFVals, iter)
     jldopen(filename, "w") do file
@@ -256,6 +257,7 @@ function simulate(LP::AbstractLProblem, nTrials::Int64, alg::OrdinaryDiffEqAlgor
     t1 = time()
     t0 = t1-offset
     integrator = init(LP.prob, alg; save_everystep = false, callback = LP.cb, abstol = abstol_i, reltol = reltol_i, kwargs...)
+    reinit!(integrator, randomState(A,OSET,RNG))
     solve!(integrator)
     calculateCorrFunc!(A, saved_values, rules, cf_vals, iter)
     save_data(save_o, cf_vals, iter)
@@ -327,19 +329,22 @@ function parse_dir(dirlist::Tuple{AbstractString,Vararg{AbstractString}})
     return corfs, Ns
 end
 
-function aggregate(dirname::AbstractString = pwd())
+function aggregate(dirname::AbstractString = pwd(), normalize::Val{T} = Val{true}()) where {T}
     corfs, Ns = parse_dir(dirname)
-    return aggregate(corfs, Ns, dirname)
+    return aggregate(corfs, Ns, dirname, "aggregate.jld", normalize)
 end
 
-function aggregate(dirlist::Tuple{AbstractString,Vararg{AbstractString}}, destdir::AbstractString = pwd())
+function aggregate(dirlist::Tuple{AbstractString,Vararg{AbstractString}}, destdir::AbstractString = pwd(), normalize::Val{T} = Val{true}()) where {T}
     corfs, Ns = parse_dir(dirlist)
     mkpath(destdir)
-    return aggregate(corfs, Ns, destdir)
+    return aggregate(corfs, Ns, destdir, "aggregate.jld", normalize)
 end
 
 
-function aggregate(corfs::Vector{CFVals}, Ns::Vector{Int64}, dirname::AbstractString = pwd(), agrname = "aggregate.jld")
+get_norm_coef(coef::Float64, ::Val{true}) = coef
+get_norm_coef(coef::Float64, ::Val{false}) = 1.0
+
+function aggregate(corfs::Vector{CFVals}, Ns::Vector{Int64}, dirname::AbstractString = pwd(), agrname = "aggregate.jld", normalize::Val{T} = Val{true}()) where {T}
     aggregate = zeros(first(corfs))
     N_total = sum(Ns)
     for i in eachindex(corfs)
@@ -353,8 +358,8 @@ function aggregate(corfs::Vector{CFVals}, Ns::Vector{Int64}, dirname::AbstractSt
     divisor = 1.0/(N_total * (N_total - 1))
     for i in 1:length(aggregate.data)
         coef = 1.0/aggregate.data[1,i]
-        aggregate.data[:,i] .= aggregate.data[:,i] .* coef
-        aggregate.errors[:, i] .= sqrt.(aggregate.errors[:,i] .* divisor) .* coef
+        aggregate.data[:,i] .= aggregate.data[:,i] .* get_norm_coef(coef, normalize)
+        aggregate.errors[:, i] .= sqrt.(aggregate.errors[:,i] .* divisor) .* get_norm_coef(coef, normalize)
     end
     save_data(joinpath(dirname, agrname), aggregate, N_total)
     return aggregate, N_total
@@ -387,20 +392,20 @@ function separate(Ns::Vector{Int64})
     return l1, l2
 end
 
-function aggregate2(dirname::AbstractString = pwd())
+function aggregate2(dirname::AbstractString = pwd(), normalize::Val{T} = Val{true}()) where {T}
     corfs, Ns = parse_dir(dirname)
     l1, l2 = separate(Ns)
-    agr1, Ntot1 = aggregate(corfs[l1], Ns[l1], dirname, "aggregate1.jld")
-    agr2, Ntot2 = aggregate(corfs[l2], Ns[l2], dirname, "aggregate2.jld")
+    agr1, Ntot1 = aggregate(corfs[l1], Ns[l1], dirname, "aggregate1.jld", normalize)
+    agr2, Ntot2 = aggregate(corfs[l2], Ns[l2], dirname, "aggregate2.jld", normalize)
     return agr1, Ntot1, agr2, Ntot2
 end
 
 
-function aggregate2(dirlist::Tuple{AbstractString,Vararg{AbstractString}}, destdir::AbstractString = pwd())
+function aggregate2(dirlist::Tuple{AbstractString,Vararg{AbstractString}}, destdir::AbstractString = pwd(), normalize::Val{T} = Val{true}()) where {T}
     corfs, Ns = parse_dir(dirlist)
     l1, l2 = separate(Ns)
     mkpath(destdir)
-    agr1, Ntot1 = aggregate(corfs[l1], Ns[l1], destdir, "aggregate1.jld")
-    agr2, Ntot2 = aggregate(corfs[l2], Ns[l2], destdir, "aggregate2.jld")
+    agr1, Ntot1 = aggregate(corfs[l1], Ns[l1], destdir, "aggregate1.jld", normalize)
+    agr2, Ntot2 = aggregate(corfs[l2], Ns[l2], destdir, "aggregate2.jld", normalize)
     return agr1, Ntot1, agr2, Ntot2
 end
