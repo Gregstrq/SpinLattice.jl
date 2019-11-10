@@ -26,7 +26,7 @@ export ExactApprox, ClusteredApprox, PureClassicalApprox, HybridApprox
 export ExactObservable, ClusteredObservable, PureClassicalObservable, HybridObservable, ObservablesSet
 export build_Hamiltonian, build_Approximation, build_RHS_function, build_Spin_Operator, set_CorrFuncs, calculateCorrFunc!, build_Observable
 export get_string, translate_indices, get_q_spins, get_cl_spins, get_all_spins, get_central_spins, get_spins_by_name
-export build_problem, simulate, set_Logging, output, randomState, LProblem, similar
+export build_problem, build_problem0, simulate, set_Logging, output, randomState, LProblem, similar
 export get_positions, get_Dh, QuantumObservable, ClassicalObservable, axis_dict
 
 end

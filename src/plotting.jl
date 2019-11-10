@@ -18,5 +18,5 @@ end
 @recipe function f(cf::CFVals, key::AbstractString, scale::Float64, func::Function)
     i = findfirst(cf.str_vec, key)
     fillalpha := 0.3
-    cf.ts*scale, func.(cf.data[i])
+    cf.ts*scale, cf.data[i].*func.(cf.ts*scale)
 end

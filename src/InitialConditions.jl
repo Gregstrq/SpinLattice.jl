@@ -48,12 +48,12 @@ function randomState(A::Approx, RNG::AbstractRNG = Base.GLOBAL_RNG) where {Appro
     Dh = 2^A.q_num
     return ArrayPartition(random_q_state(Dh, RNG), random_cl_state(A.cl_num, RNG))
 end
-function randomState(A::CompositeApproximation, RNG::AbstractRNG = Base.GLOBAL_RNG)
+function randomState(A::CompositeApproximation{T}, RNG::AbstractRNG = Base.GLOBAL_RNG) where T<:HybridApprox
     Dh = 2^A.A1.q_num
     return ArrayPartition(random_q_state(Dh, RNG), random_cl_state(A.A1.cl_num, RNG), randomState(A.A2, RNG))
 end
 
-@inline randomState(A::AbstractApproximation, OSET::ObservablesSet, RNG::AbstractRNG = Base.GLOBAL_RNG) = randomState(A, RNG)
+@inline randomState(A::abstractApproximation, OSET::ObservablesSet, RNG::AbstractRNG = Base.GLOBAL_RNG) = randomState(A, RNG)
 
 function initRNG(d::Int)
     return randjump(Base.GLOBAL_RNG, d)
