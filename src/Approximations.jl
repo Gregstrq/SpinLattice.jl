@@ -77,7 +77,7 @@ end
         name = Symbol(name, :_, q_block[i])
         i += 1
     end
-    HybridApprox(L, translate_indices(L, CartesianRange(tuple(q_block..., L.cell_size))), name)
+    HybridApprox(L, translate_indices(L, CartesianIndices(tuple(q_block..., L.cell_size))), name)
 end
 
 struct CompositeApproximation{Approx1<:AbstractApproximation, Approx2<:AbstractApproximation} <: AbstractCompositeApproximation{Approx1, Approx2}
@@ -108,13 +108,13 @@ function get_value(A::AbstractApproximation, spin1::S, spin2::S) where {S<:Union
     return get_value(A.L, spin1::S, spin2::S)
 end
 
-get_q_spins(A::ExactApprox) = translate_indices(A.L, CartesianRange(tuple(A.L.lattice_dims..., A.L.cell_size)))
-get_q_spins(A::ClusteredApprox) = translate_indices(A.L, CartesianRange(tuple(A.inner_cluster_dims..., A.L.cell_size)))
+get_q_spins(A::ExactApprox) = translate_indices(A.L, CartesianIndices(tuple(A.L.lattice_dims..., A.L.cell_size)))
+get_q_spins(A::ClusteredApprox) = translate_indices(A.L, CartesianIndices(tuple(A.inner_cluster_dims..., A.L.cell_size)))
 @inline get_q_spins(A::HybridApprox) = A.q_spins
 
 get_Dh(A::AbstractQuantumApproximation) = 2^length(get_q_spins(A))
 
-get_cl_spins(A::PureClassicalApprox) = translate_indices(A.L, CartesianRange(tuple(A.L.lattice_dims..., A.L.cell_size)))
+get_cl_spins(A::PureClassicalApprox) = translate_indices(A.L, CartesianIndices(tuple(A.L.lattice_dims..., A.L.cell_size)))
 @inline get_cl_spins(A::HybridApprox) = A.cl_spins
 
 @inline get_all_spins(A::AbstractApproximation) = get_all_spins(A.L)

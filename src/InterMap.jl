@@ -1,4 +1,4 @@
-function InterMap(L::Lattice{D}, cr::CartesianRange{CartesianIndex{D}}, filename::AbstractString, cutoff::Int64, origin::Vector{Float64}) where D
+function InterMap(L::Lattice{D}, cr::CartesianIndices{D}, filename::AbstractString, cutoff::Int64, origin::Vector{Float64}) where D
     vals = Vector{Float64}()
     distances = Vector{Float64}()
     indices = Vector{Tuple{NTuple{D,Int64},Int64}}()
@@ -24,7 +24,7 @@ function InterMap(L::Lattice{D}, cr::CartesianRange{CartesianIndex{D}}, filename
     close(io)
 end
 
-function get_num_eff(L::Lattice{D}, cr::CartesianRange{CartesianIndex{D}}, origin::Vector{Float64}) where D
+function get_num_eff(L::Lattice{D}, cr::CartesianIndices{D}, origin::Vector{Float64}) where D
     jj = 0.0
     j = 0.0
     for ci in cr

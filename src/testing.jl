@@ -1,6 +1,6 @@
 module myTesting
 using SpinLattice
-using PyCall, RecursiveArrayTools, Printf, SparseArrays
+using PyCall, RecursiveArrayTools, Printf, SparseArrays, LinearAlgebra
 pushfirst!(PyVector(pyimport("sys")."path"), "")
 mkl = pyimport("mkl")
 mkl.set_num_threads(1)
@@ -228,9 +228,9 @@ const toler = 1e-14
 
 function convert_state(A::ExactApprox, sp)
     v = Vector{Vector{Complex{Float64}}}()
-    push!(v, copy(sp[:psi]))
-    for i = 1:size(sp[:psi_aid],1)
-        push!(v, sp[:psi_aid][i,:])
+    push!(v, copy(sp.psi))
+    for i = 1:size(sp.psi_aid,1)
+        push!(v, sp.psi_aid[i,:])
     end
     return VectorOfArray(v)
 end
@@ -244,18 +244,18 @@ function test_operators(M::Exact, dims::NTuple{D,Int64}, Js::NTuple{3,Float64}, 
         axis = axis_dict[Obs.axis]-1
         Ms_j[axis] = jlmat2pymat(Obs.QO.O)
     end
-    sp[:initState]()
-    u0 = copy(sp[:psi])
+    sp.initState()
+    u0 = copy(sp.psi)
     du = copy(u0)
     tj = -time()
     RHS(du,u0,0.0,0.0)
     tj += time()
     tp = -time()
-    du2 = sp[:rhs](sp[:psi])
+    du2 = sp.rhs(sp.psi)
     tp += time()
     print("$((dims, Js, I, hs))\n")
-    @printf("Check Hamiltonian:   %e\n", slinalg.norm(sp[:H]-H_j)/slinalg.norm(sp[:H]))
-    @printf("Check tot magnetiz: %e   %e   %e\n", [slinalg.norm(sp[:Ms][i]-Ms_j[i])/slinalg.norm(sp[:Ms][i]) for i in 0:2]...)
+    @printf("Check Hamiltonian:   %e\n", slinalg.norm(sp.H-H_j)/slinalg.norm(sp.H))
+    @printf("Check tot magnetiz: %e   %e   %e\n", [slinalg.norm(sp.Ms[i]-Ms_j[i])/slinalg.norm(sp.Ms[i]) for i in 0:2]...)
     @printf("Check RHS: %e\n", norm(du.*(2.0^-7)-du2)/norm(du2))
     @printf("Check time: %10e", tj/tp)
     print("\n\n")
@@ -263,8 +263,8 @@ function test_operators(M::Exact, dims::NTuple{D,Int64}, Js::NTuple{3,Float64}, 
 end
 
 function convert_state(A::ClusteredApprox, sp)
-    cluster_num = size(sp[:psi],1)
-    u0 = VectorOfArray([copy(sp[:psi][i,:]) for i in 1:cluster_num])
+    cluster_num = size(sp.psi,1)
+    u0 = VectorOfArray([copy(sp.psi[i,:]) for i in 1:cluster_num])
     return u0
 end
 
@@ -283,28 +283,28 @@ function test_operators(M::Clustered, dims::NTuple{D,Int64}, Js::NTuple{3,Float6
     for espin in 1:num_of_espins for sigma in 1:3
         taus_j[espin, sigma] = jlmat2pymat(RHS.edgeSpinOperators[sigma, espin])
     end end
-    sp[:initState]()
-    cluster_num = size(sp[:psi],1)
-    u0 = VectorOfArray([copy(sp[:psi][i,:]) for i in 1:cluster_num])
-    du = VectorOfArray([copy(sp[:psi][i,:]) for i in 1:cluster_num])
+    sp.initState()
+    cluster_num = size(sp.psi,1)
+    u0 = VectorOfArray([copy(sp.psi[i,:]) for i in 1:cluster_num])
+    du = VectorOfArray([copy(sp.psi[i,:]) for i in 1:cluster_num])
     tj = -time()
     RHS(du,u0,0.0,0.0)
     tj += time()
     tp = -time()
-    du2 = sp[:rhs](sp[:psi])
+    du2 = sp.rhs(sp.psi)
     tp += time()
 
     print("$((dims, Js, I, hs))\n")
-    @printf("Check Hamiltonian:   %e\n", slinalg.norm(sp[:H]-H_j)/slinalg.norm(sp[:H]))
+    @printf("Check Hamiltonian:   %e\n", slinalg.norm(sp.H-H_j)/slinalg.norm(sp.H))
     print("Check spin operators:\n")
     for espin in 1:num_of_espins
         for sigma in 1:3
-            @printf("%10e ", slinalg.norm(sp[:taus][espin, sigma]-taus_j[espin, sigma])/slinalg.norm(sp[:taus][espin, sigma]))
+            @printf("%10e ", slinalg.norm(sp.taus[espin, sigma]-taus_j[espin, sigma])/slinalg.norm(sp.taus[espin, sigma]))
         end
         print("\n")
     end
     ###################
-    links = sp[:links]
+    links = sp.links
     noe = num_of_espins
     cl_num = cluster_num
     len = noe*cl_num
@@ -314,20 +314,20 @@ function test_operators(M::Clustered, dims::NTuple{D,Int64}, Js::NTuple{3,Float6
         p2 = sub2ind((noe,cl_num), link[2][2]+1, link[2][1]+1)
         IMp[p1,p2] += 1.0
     end
-    IMp .= .-IMp.*0.25.*sqrt(sp[:N])
+    IMp .= .-IMp.*0.25.*sqrt(sp.N)
     @printf("Check intrablock matrix: %10e\n", norm(IMp-RHS.IM)/norm(IMp))
     ####################
     print("Check observables:\n")
     print("Local: ")
     for axis in ["x","y","x"]
         index = (axis,"Local")
-        @printf("%10e ", slinalg.norm(sp[:ops][index] - ops_j[index])/slinalg.norm(sp[:ops][index]))
+        @printf("%10e ", slinalg.norm(sp.ops[index] - ops_j[index])/slinalg.norm(sp.ops[index]))
     end
     print("\n")
     print("Global: ")
     for axis in ["x","y","x"]
         index = (axis,"Global")
-        @printf("%10e ", slinalg.norm(sp[:ops][index] - ops_j[index])/slinalg.norm(sp[:ops][index]))
+        @printf("%10e ", slinalg.norm(sp.ops[index] - ops_j[index])/slinalg.norm(sp.ops[index]))
     end
     print("\n")
     ###################
@@ -341,7 +341,7 @@ function test_operators(M::Clustered, dims::NTuple{D,Int64}, Js::NTuple{3,Float6
 end
 
 function convert_state(A::HybridApprox, sp)
-    u0 = ArrayPartition(copy(sp[:psi]), VectorOfArray([copy(sp[:clState][i,:]) for i in 1:3]))
+    u0 = ArrayPartition(copy(sp.psi), VectorOfArray([copy(sp.clState[i,:]) for i in 1:3]))
     return u0
 end
 
@@ -360,23 +360,23 @@ function test_operators(M::Hybrid, dims::NTuple{D,Int64}, Js::NTuple{3,Float64},
     for espin in 1:num_of_espins for sigma in 1:3
         taus_j[espin, sigma] = jlmat2pymat(RHS.edgeSpinOperators[espin, sigma])
     end end
-    sp[:initState]()
-    sp[:updateCorrelator]()
-    u0 = ArrayPartition(copy(sp[:psi]), VectorOfArray([copy(sp[:clState][i,:]) for i in 1:3]))
-    du = ArrayPartition(copy(sp[:psi]), VectorOfArray([copy(sp[:clState][i,:]) for i in 1:3]))
+    sp.initState()
+    sp.updateCorrelator()
+    u0 = ArrayPartition(copy(sp.psi), VectorOfArray([copy(sp.clState[i,:]) for i in 1:3]))
+    du = ArrayPartition(copy(sp.psi), VectorOfArray([copy(sp.clState[i,:]) for i in 1:3]))
     tj = -time()
     RHS(du,u0,0.0,0.0)
     tj += time()
     tp = -time()
-    du2 = sp[:rhs](sp[:psi], sp[:clState])
+    du2 = sp.rhs(sp.psi, sp.clState)
     tp += time()
 
     print("$((dims, Js, I, hs))\n")
-    @printf("Check Hamiltonian:   %e\n", slinalg.norm(sp[:H]-H_j)/slinalg.norm(sp[:H]))
+    @printf("Check Hamiltonian:   %e\n", slinalg.norm(sp.H-H_j)/slinalg.norm(sp.H))
     print("Check spin operators:\n")
     for espin in 1:num_of_espins
         for sigma in 1:3
-            @printf("%10e ", slinalg.norm(sp[:taus][espin, sigma]-taus_j[espin, sigma])/slinalg.norm(sp[:taus][espin, sigma]))
+            @printf("%10e ", slinalg.norm(sp.taus[espin, sigma]-taus_j[espin, sigma])/slinalg.norm(sp.taus[espin, sigma]))
         end
         print("\n")
     end
@@ -385,13 +385,13 @@ function test_operators(M::Hybrid, dims::NTuple{D,Int64}, Js::NTuple{3,Float64},
     print("Local: ")
     for axis in [0,1,2]
         index = (axis,"Local")
-        @printf("%10e ", slinalg.norm(sp[:ops][index] - ops_j[index][1])/slinalg.norm(sp[:ops][index]))
+        @printf("%10e ", slinalg.norm(sp.ops[index] - ops_j[index][1])/slinalg.norm(sp.ops[index]))
     end
     print("\n")
     print("Global: ")
     for axis in [0,1,2]
         index = (axis,"Global")
-        @printf("%10e ", slinalg.norm(sp[:ops][index] - ops_j[index][1])/slinalg.norm(sp[:ops][index]))
+        @printf("%10e ", slinalg.norm(sp.ops[index] - ops_j[index][1])/slinalg.norm(sp.ops[index]))
     end
     print("\n")
     ###################
@@ -399,22 +399,22 @@ function test_operators(M::Hybrid, dims::NTuple{D,Int64}, Js::NTuple{3,Float64},
     print("Local: ")
     for axis in [0,1,2]
         index = (axis,"Local")
-        @printf("%10e ", norm(sp[:means][index][end] - ops_j[index][2](u0))/norm(sp[:means][index][end]))
+        @printf("%10e ", norm(sp.means[index][end] - ops_j[index][2](u0))/norm(sp.means[index][end]))
     end
     print("\n")
     print("Global: ")
     for axis in [0,1,2]
         index = (axis,"Global")
-        @printf("%10e ", norm(sp[:means][index][end] - ops_j[index][2](u0))/norm(sp[:means][index][end]))
+        @printf("%10e ", norm(sp.means[index][end] - ops_j[index][2](u0))/norm(sp.means[index][end]))
     end
     print("\n")
     ###################
     IM_j = jlmat2pymat(RHS.IM)
     q2cl_j = jlmat2pymat(RHS.q2cl)
     cl2q_j = jlmat2pymat(RHS.cl2q)
-    q2cl_p = sp[:Q2CL]*0.5*sqrt(get_Dh(A))
-    cl2q_p = sp[:CL2Q]*-0.5
-    @printf("Check IM: %10e\n", slinalg.norm(sp[:FM]-IM_j)/slinalg.norm(sp[:FM]))
+    q2cl_p = sp.Q2CL*0.5*sqrt(get_Dh(A))
+    cl2q_p = sp.CL2Q*-0.5
+    @printf("Check IM: %10e\n", slinalg.norm(sp.FM-IM_j)/slinalg.norm(sp.FM))
     @printf("Check Q2CL: %10e\n", slinalg.norm(q2cl_p-q2cl_j)/slinalg.norm(q2cl_p))
     @printf("Check CL2Q: %10e\n", slinalg.norm(cl2q_p-cl2q_j)/slinalg.norm(cl2q_p))
     ###################
@@ -445,45 +445,45 @@ function test_operators(M::Hybrid, dims::NTuple{3,Int64}, Js::NTuple{3,Float64},
     for espin in 1:num_of_espins for sigma in 1:3
         taus_j[espin, sigma] = jlmat2pymat(RHS.edgeSpinOperators[espin, sigma])
     end end
-    sp[:initState]()
-    sp[:updateCorrelator]()
-    u0 = ArrayPartition(copy(sp[:psi]), VectorOfArray([copy(sp[:clState][i,:]) for i in 1:3]))
-    du = ArrayPartition(copy(sp[:psi]), VectorOfArray([copy(sp[:clState][i,:]) for i in 1:3]))
+    sp.initState()
+    sp.updateCorrelator()
+    u0 = ArrayPartition(copy(sp.psi), VectorOfArray([copy(sp.clState[i,:]) for i in 1:3]))
+    du = ArrayPartition(copy(sp.psi), VectorOfArray([copy(sp.clState[i,:]) for i in 1:3]))
     tj = -time()
     RHS(du,u0,0.0,0.0)
     tj += time()
     tp = -time()
-    du2 = sp[:rhs](sp[:psi], sp[:clState])
+    du2 = sp.rhs(sp.psi, sp.clState)
     tp += time()
 
     print("$((dims, Js, I, hs))\n")
-    @printf("Check Hamiltonian:   %e\n", slinalg.norm(sp[:H]-H_j)/slinalg.norm(sp[:H]))
+    @printf("Check Hamiltonian:   %e\n", slinalg.norm(sp.H-H_j)/slinalg.norm(sp.H))
     print("Check spin operators:\n")
     for espin in 1:num_of_espins
         for sigma in 1:3
-            @printf("%10e ", slinalg.norm(sp[:taus][espin, sigma]-taus_j[espin, sigma])/slinalg.norm(sp[:taus][espin, sigma]))
+            @printf("%10e ", slinalg.norm(sp.taus[espin, sigma]-taus_j[espin, sigma])/slinalg.norm(sp.taus[espin, sigma]))
         end
         print("\n")
     end
     ###################
     print("Check observable ops:\n")
     index = "Local"
-    @printf("Local: %10e\n", slinalg.norm(sp[:ops][index] - ops_j[index][1])/slinalg.norm(sp[:ops][index]))
+    @printf("Local: %10e\n", slinalg.norm(sp.ops[index] - ops_j[index][1])/slinalg.norm(sp.ops[index]))
     index = "Global"
-    @printf("Global: %10e\n", slinalg.norm(sp[:ops][index] - ops_j[index][1])/slinalg.norm(sp[:ops][index]))
+    @printf("Global: %10e\n", slinalg.norm(sp.ops[index] - ops_j[index][1])/slinalg.norm(sp.ops[index]))
     ###################
     print("Check observable vals:\n")
     index = "Local"
-    @printf("Local: %10e\n", norm(sp[:means][index][end] - ops_j[index][2](u0))/norm(sp[:means][index][end]))
+    @printf("Local: %10e\n", norm(sp.means[index][end] - ops_j[index][2](u0))/norm(sp.means[index][end]))
     index = "Global"
-    @printf("Global: %10e\n", norm(sp[:means][index][end] - ops_j[index][2](u0))/norm(sp[:means][index][end]))
+    @printf("Global: %10e\n", norm(sp.means[index][end] - ops_j[index][2](u0))/norm(sp.means[index][end]))
     ###################
     IM_j = RHS.IM
     q2cl_j = RHS.q2cl
     cl2q_j = RHS.cl2q
-    q2cl_p = sp[:Q2CL]
-    cl2q_p = -sp[:CL2Q]
-    @printf("Check IM: %10e\n", norm(sp[:FM]-IM_j)/norm(sp[:FM]))
+    q2cl_p = sp.Q2CL
+    cl2q_p = -sp.CL2Q
+    @printf("Check IM: %10e\n", norm(sp.FM-IM_j)/norm(sp.FM))
     @printf("Check Q2CL: %10e\n", norm(q2cl_p-q2cl_j)/norm(q2cl_p))
     @printf("Check CL2Q: %10e\n", norm(cl2q_p-cl2q_j)/norm(cl2q_p))
     ###################
@@ -498,7 +498,7 @@ function test_operators(M::Hybrid, dims::NTuple{3,Int64}, Js::NTuple{3,Float64},
 end
 
 function convert_state(A::PureClassicalApprox, sp)
-    u0 = VectorOfArray([copy(sp[:clState][i,:]) for i in 1:3])
+    u0 = VectorOfArray([copy(sp.clState[i,:]) for i in 1:3])
     return u0
 end
 
@@ -510,27 +510,27 @@ function test_operators(M::PureClassical, dims::NTuple{D,Int64}, Js::NTuple{3,Fl
         index = axis_dict[Obs.axis]-1
         ops_j[index] = Obs
     end
-    sp[:initState]()
-    sp[:updateCorrelator]()
-    u0 = VectorOfArray([copy(sp[:clState][i,:]) for i in 1:3])
-    du = VectorOfArray([copy(sp[:clState][i,:]) for i in 1:3])
+    sp.initState()
+    sp.updateCorrelator()
+    u0 = VectorOfArray([copy(sp.clState[i,:]) for i in 1:3])
+    du = VectorOfArray([copy(sp.clState[i,:]) for i in 1:3])
     tj = -time()
     RHS(du,u0,0.0,0.0)
     tj += time()
     tp = -time()
-    du2 = sp[:rhs](sp[:clState])
+    du2 = sp.rhs(sp.clState)
     tp += time()
 
     print("$((dims, Js, I, hs))\n")
     ###################
     print("Check observable vals: ")
     for axis in [0,1,2]
-        @printf("%10e ", norm(sp[:means][axis][end] - ops_j[axis](u0))/norm(sp[:means][axis][end]))
+        @printf("%10e ", norm(sp.means[axis][end] - ops_j[axis](u0))/norm(sp.means[axis][end]))
     end
     print("\n")
     ###################
     IM_j = jlmat2pymat(RHS.IM)
-    @printf("Check IM: %10e\n", slinalg.norm(sp[:FM]-IM_j)/slinalg.norm(sp[:FM]))
+    @printf("Check IM: %10e\n", slinalg.norm(sp.FM-IM_j)/slinalg.norm(sp.FM))
     ###################
     print("Check rhs: ")
     for sigma in 1:3
@@ -550,23 +550,23 @@ function test_operators(M::PureClassical, dims::NTuple{3,Int64}, Js::NTuple{3,Fl
             ops_j = Obs
         end
     end
-    sp[:initState]()
-    sp[:updateCorrelator]()
-    u0 = VectorOfArray([copy(sp[:clState][i,:]) for i in 1:3])
-    du = VectorOfArray([copy(sp[:clState][i,:]) for i in 1:3])
+    sp.initState()
+    sp.updateCorrelator()
+    u0 = VectorOfArray([copy(sp.clState[i,:]) for i in 1:3])
+    du = VectorOfArray([copy(sp.clState[i,:]) for i in 1:3])
     tj = -time()
     RHS(du,u0,0.0,0.0)
     tj += time()
     tp = -time()
-    du2 = sp[:rhs](sp[:clState])
+    du2 = sp.rhs(sp.clState)
     tp += time()
 
     print("$((dims, Js, I, hs))\n")
     ###################
-    @printf("Check observable val: %10e\n", norm(sp[:means][end] - ops_j(u0))/norm(sp[:means][end]))
+    @printf("Check observable val: %10e\n", norm(sp.means[end] - ops_j(u0))/norm(sp.means[end]))
     ###################
     IM_j = RHS.IM
-    @printf("Check IM: %10e\n", norm(sp[:FM]-IM_j)/norm(sp[:FM]))
+    @printf("Check IM: %10e\n", norm(sp.FM-IM_j)/norm(sp.FM))
     ###################
     print("Check rhs: ")
     for sigma in 1:3
@@ -577,18 +577,18 @@ function test_operators(M::PureClassical, dims::NTuple{3,Int64}, Js::NTuple{3,Fl
     print("\n\n")
 end
 
-@inline store_state(A::ExactApprox, sp) = (deepcopy(sp[:psi]),deepcopy(sp[:psi_aid]))
-@inline store_state(A::ClusteredApprox, sp) = (deepcopy(sp[:psi]),)
-@inline store_state(A::HybridApprox, sp) = (deepcopy(sp[:psi]), deepcopy(sp[:clState]))
-@inline store_state(A::PureClassicalApprox, sp) = (deepcopy(sp[:clState]),)
+@inline store_state(A::ExactApprox, sp) = (deepcopy(sp.psi),deepcopy(sp.psi_aid))
+@inline store_state(A::ClusteredApprox, sp) = (deepcopy(sp.psi),)
+@inline store_state(A::HybridApprox, sp) = (deepcopy(sp.psi), deepcopy(sp.clState))
+@inline store_state(A::PureClassicalApprox, sp) = (deepcopy(sp.clState),)
 
 function test_propagation(M::AbstractModel, args...; Tmax::Float64 = 10.0, tstep::Float64 = 2.0^-7, delimiter = 10)
     A, ARHS, OSET, rules = julia_initialize(M, args...)
     sp = py_initialize(M, args...; :Tmax => Tmax, :tstep => tstep)
-    sp[:initState]()
+    sp.initState()
     u0 = convert_state(A, sp)
     state = store_state(A, sp)
-    sp[:propagate](state...)
+    sp.propagate(state...)
     ####
     l = length(OSET.Observables)
     tspan = (0.0,Tmax*delimiter)
