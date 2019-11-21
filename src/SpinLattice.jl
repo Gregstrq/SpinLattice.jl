@@ -1,10 +1,13 @@
 #__precompile__()
 
 module SpinLattice
-using DiffEqBase, OrdinaryDiffEq, RecursiveArrayTools, JLD, HDF5, DataStructures
-using DiffEqCallbacks
-using Iterators: product
+using DiffEqBase, OrdinaryDiffEq, RecursiveArrayTools, DiffEqCallbacks
+using JLD, HDF5, DataStructures
+using RecipesBase
+using SparseArrays, SharedArrays, Printf
+using LinearAlgebra, Random, Distributed
 
+include("compatibility.jl")
 include("sharedsparse.jl")
 include("spin_funcs.jl")
 include("Interactions.jl")

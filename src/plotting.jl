@@ -1,5 +1,3 @@
-using RecipesBase
-
 @recipe function f(cf::CFVals, key::AbstractString)
     i = findfirst(cf.str_vec, key)
     ribbons := cf.errors[i]

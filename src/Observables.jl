@@ -9,11 +9,11 @@ struct QuantumObservable{TO<:AbstractSparseMatrix} <: AbstractSimpleObservable
     temp_vector::Vector{Complex{Float64}}
 end
 function QuantumObservable(Dh::Int64, q_spins::Vector{Int64}, sigma::Int64)
-    assert(sigma in 1:3)
+    @assert sigma in 1:3
     for i in eachindex(q_spins)
-        assert(2^q_spins[i]<=Dh)
+        @assert 2^q_spins[i]<=Dh
     end
-    QuantumObservable(build_Spin_Operator(Dh, q_spins, sigma), Vector{Complex{Float64}}(Dh))
+    QuantumObservable(build_Spin_Operator(Dh, q_spins, sigma), Vector{Complex{Float64}}(undef, Dh))
 end
 
 struct ClassicalObservable <: AbstractSimpleObservable
@@ -163,8 +163,8 @@ end
 ObservablesSet(O::AbstractCompositeObservable) = ObservablesSet((O,))
 
 @inline ObservablesSet(obs...) = ObservablesSet(obs)
-@inline function (OSET::ObservablesSet)(t, v, integrator)
-    data = Vector{Float64}(OSET.len)
+@inline function (OSET::ObservablesSet)(v, t, integrator)
+    data = Vector{Float64}(undef, OSET.len)
     for i in eachindex(OSET.Observables)
         data[i] = OSET.Observables[i](v)
     end
@@ -269,7 +269,7 @@ function set_CorrFuncs(A::AbstractApproximation, links::NTuple{D, NTuple{2,Union
     for axis in axes
         for i in eachindex(links)
             push!(links_str, get_string((links[i], axis)))
-            push!(rules, ( findfirst(os_a, (links[i][1], axis)) , findfirst(os_a, (links[i][2], axis)) ) )
+            push!(rules, ( findfirst_c(os_a, (links[i][1], axis)) , findfirst_c(os_a, (links[i][2], axis)) ) )
         end
     end
     return ConvRules(links_str, rules), OSET
@@ -322,7 +322,7 @@ function calculateCorrFunc!(A::AbstractApproximation, saved_values::SavedValues,
      l = length(savevals)
      nmeans = length(savevals[1])
      for m in Base.OneTo(nmeans)
-         v = Vector{Float64}(l)
+         v = Vector{Float64}(undef, l)
          for i in Base.OneTo(l)
              v[i] = savevals[i][m]
          end

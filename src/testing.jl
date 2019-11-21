@@ -1,12 +1,12 @@
 module myTesting
 using SpinLattice
-using PyCall, RecursiveArrayTools
-unshift!(PyVector(pyimport("sys")["path"]), "")
-@pyimport mkl
+using PyCall, RecursiveArrayTools, Printf, SparseArrays
+pushfirst!(PyVector(pyimport("sys")."path"), "")
+mkl = pyimport("mkl")
 mkl.set_num_threads(1)
-@pyimport madness as oop
-@pyimport scipy.sparse as pysparse
-@pyimport scipy.sparse.linalg as slinalg
+oop = pyimport("madness")
+pysparse = pyimport("scipy.sparse")
+slinalg = pyimport("scipy.sparse.linalg")
 
 L1d_1 = ((15,), (-0.41,-0.41,0.82), Interaction(nearest_neighbours), (0.,0.,0.))
 L1d_2 = ((15,), (1.0,1.0,1.0), Interaction(nearest_neighbours), (0.,0.,0.))
@@ -248,7 +248,7 @@ function test_operators(M::Exact, dims::NTuple{D,Int64}, Js::NTuple{3,Float64}, 
     u0 = copy(sp[:psi])
     du = copy(u0)
     tj = -time()
-    RHS(0.0,u0,du)
+    RHS(du,u0,0.0,0.0)
     tj += time()
     tp = -time()
     du2 = sp[:rhs](sp[:psi])
@@ -288,7 +288,7 @@ function test_operators(M::Clustered, dims::NTuple{D,Int64}, Js::NTuple{3,Float6
     u0 = VectorOfArray([copy(sp[:psi][i,:]) for i in 1:cluster_num])
     du = VectorOfArray([copy(sp[:psi][i,:]) for i in 1:cluster_num])
     tj = -time()
-    RHS(0.0,u0,du)
+    RHS(du,u0,0.0,0.0)
     tj += time()
     tp = -time()
     du2 = sp[:rhs](sp[:psi])
@@ -365,7 +365,7 @@ function test_operators(M::Hybrid, dims::NTuple{D,Int64}, Js::NTuple{3,Float64},
     u0 = ArrayPartition(copy(sp[:psi]), VectorOfArray([copy(sp[:clState][i,:]) for i in 1:3]))
     du = ArrayPartition(copy(sp[:psi]), VectorOfArray([copy(sp[:clState][i,:]) for i in 1:3]))
     tj = -time()
-    RHS(0.0,u0,du)
+    RHS(du,u0,0.0,0.0)
     tj += time()
     tp = -time()
     du2 = sp[:rhs](sp[:psi], sp[:clState])
@@ -450,7 +450,7 @@ function test_operators(M::Hybrid, dims::NTuple{3,Int64}, Js::NTuple{3,Float64},
     u0 = ArrayPartition(copy(sp[:psi]), VectorOfArray([copy(sp[:clState][i,:]) for i in 1:3]))
     du = ArrayPartition(copy(sp[:psi]), VectorOfArray([copy(sp[:clState][i,:]) for i in 1:3]))
     tj = -time()
-    RHS(0.0,u0,du)
+    RHS(du,u0,0.0,0.0)
     tj += time()
     tp = -time()
     du2 = sp[:rhs](sp[:psi], sp[:clState])
@@ -515,7 +515,7 @@ function test_operators(M::PureClassical, dims::NTuple{D,Int64}, Js::NTuple{3,Fl
     u0 = VectorOfArray([copy(sp[:clState][i,:]) for i in 1:3])
     du = VectorOfArray([copy(sp[:clState][i,:]) for i in 1:3])
     tj = -time()
-    RHS(0.0,u0,du)
+    RHS(du,u0,0.0,0.0)
     tj += time()
     tp = -time()
     du2 = sp[:rhs](sp[:clState])
@@ -555,7 +555,7 @@ function test_operators(M::PureClassical, dims::NTuple{3,Int64}, Js::NTuple{3,Fl
     u0 = VectorOfArray([copy(sp[:clState][i,:]) for i in 1:3])
     du = VectorOfArray([copy(sp[:clState][i,:]) for i in 1:3])
     tj = -time()
-    RHS(0.0,u0,du)
+    RHS(du,u0,0.0,0.0)
     tj += time()
     tp = -time()
     du2 = sp[:rhs](sp[:clState])

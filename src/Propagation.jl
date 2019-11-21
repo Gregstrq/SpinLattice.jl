@@ -38,7 +38,7 @@ function build_problem(A::abstractApproximation; Tmax::Float64 = 10.0, tstep::Fl
     saved_values = SavedValues(t_means, [zeros(l) for i in eachindex(t_means)])
     u0 = randomState(A, OSET)
     prob = ODEProblem(ARHS, u0, tspan)
-    cb = SavingCallback(OSET, saved_values, u0; saveat = t_means)
+    cb = SavingCallback(OSET, saved_values; saveat = t_means)
     #cb = SavingCallback(OSET, saved_values; save_everystep=true)
     cf_vals = CFVals(rules, t_cors)
     return LProblem(A, cb, prob, rules, cf_vals, Tmax, tstep, delimiter)
@@ -59,7 +59,7 @@ function build_problem0(A::abstractApproximation; Tmax::Float64 = 10.0, tstep::F
     saved_values = SavedValues(t_means, [zeros(l) for i in eachindex(t_means)])
     u0 = randomState(A, OSET)
     prob = ODEProblem(ARHS, u0, tspan)
-    cb = SavingCallback(OSET, saved_values, u0; saveat = t_means)
+    cb = SavingCallback(OSET, saved_values; saveat = t_means)
     #cb = SavingCallback(OSET, saved_values; save_everystep=true)
     cf_vals = CFVals0(rules, t_cors)
     return LProblem0(A, cb, prob, rules, cf_vals, Tmax, tstep, delimiter)
@@ -209,7 +209,7 @@ function set_Logging(logger::Logger, A::abstractApproximation, path_part::Abstra
     return log_o, save_o
 end
 
-@inline set_path(logger::Logger{:no, :cmd}, args...) = nothing
+@inline set_path(logger::Logger{:no, :cmd}, A::abstractApproximation, path_part::AbstractString) = nothing
 function set_path(logger::Logger, A::abstractApproximation, path_part::AbstractString)
     path = get_prefix(logger) * get_path_string(A) * path_part
     mkpath(path)
@@ -219,7 +219,7 @@ end
 get_prefix(logger::Logger{:local}) = "./Data/"
 get_prefix(logger::Logger{:cluster}) = ENV["WORK_DIR"] * "/Data/"
 
-@inline set_Saver(path::Void, args...) = Saver()
+@inline set_Saver(path::Nothing, args...) = Saver()
 set_Saver(path::AbstractString, filename::AbstractString, args...) = Saver(path * filename * ".jld", args...)
 set_Saver(path::AbstractString, filename::Vector{T}, args...) where {T<:AbstractString} = [Saver(path * fname * ".jld", args...) for fname in filename]
 
@@ -233,8 +233,8 @@ set_Logging(LP::LProblem, nTrials::Int64, args...) = set_Logging(args...)
 set_Logging(LP::LProblem0, nTrials::Int64, args...) = set_Logging(args..., nTrials, LP.cf_vals)
 
 
-function simulate(LP::AbstractLProblem, nTrials::Int64, alg::OrdinaryDiffEqAlgorithm, logger::Logger{T1,T2} = Logger{:no, :cmd}(), thread::Int64 = 1, interval::Int64 = 1, RNG::AbstractRNG=Base.GLOBAL_RNG; abstol_i = 1e-14, reltol_i = 1e-6, kwargs...) where {T1,T2}
-    assert(nTrials > 0)
+function simulate(LP::AbstractLProblem, nTrials::Int64, alg::OrdinaryDiffEqAlgorithm, logger::Logger{T1,T2} = Logger{:no, :cmd}(), thread::Int64 = 1, interval::Int64 = 1, RNG::AbstractRNG=Random.GLOBAL_RNG; abstol_i = 1e-14, reltol_i = 1e-6, kwargs...) where {T1,T2}
+    @assert nTrials > 0
     saved_values = LP.cb.affect!.saved_values
     rules = LP.rules
     cf_vals = LP.cf_vals

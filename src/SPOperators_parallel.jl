@@ -1,6 +1,6 @@
 const tolerance = 1e-16
 
-const QSpins = Union{AbstractVector{Int64}, AbstractVector{NTuple{2, Int64}}, CartesianRange}
+const QSpins = Union{AbstractVector{Int64}, AbstractVector{NTuple{2, Int64}}, CartesianIndices}
 
 function build_quantum_links(L::Lattice, quantum_spins::AbstractVector{NTuple{2, Int64}})
     q_links = Vector{Tuple{Int64,Int64,Float64}}()
@@ -36,7 +36,7 @@ function build_Hamiltonian(L::Lattice, quantum_spins::AbstractVector{NTuple{2, I
     num_of_spins = length(quantum_spins)
     Dh = 2^num_of_spins
     #calculate number of nonzero elements to store in the matrix
-    assert((L.Js |> collect |> norm) + (L.hs |> collect |> norm) > 0)
+    @assert (L.Js |> collect |> norm) + (L.hs |> collect |> norm) > 0
     num_of_nnzs = zero(Dh)
     if ([L.Js[3], L.hs[3]] |> norm) > 0
         num_of_nnzs += Dh
@@ -116,7 +116,7 @@ build_Hamiltonian(A::Approx) where Approx<:AbstractQuantumApproximation = build_
 
 
 function build_Spin_Operator(Dh::Int64, spin::Int64, sigma::Int64)
-    assert(1<=sigma<=3)
+    @assert 1<=sigma<=3
     num_of_nnzs = Dh
     #define arrays to store data
     data = SharedVector{Complex{Float64}}(num_of_nnzs)
@@ -251,11 +251,11 @@ function _build_InterClusterInteractions(A::ClusteredApprox)
         delta = collect(cl_pos) - cl_pos1
         #print(io,"$delta\n\n")
         for link in links
-            p1 = sub2ind((length(eedge_spins), A.cluster_num), findfirst(eedge_spins, link[1]), cluster)
+            p1 = sub2ind((length(eedge_spins), A.cluster_num), findfirst_c(eedge_spins, link[1]), cluster)
             cl_p2 = (collect(ind2sub(A.outer_cluster_dims, link[3])) .+ delta .- 1).%collect(A.outer_cluster_dims) .+ 1
             #print(io,"$cl_p2\n")
             #print(io,"$link\n")
-            p2 = sub2ind((length(eedge_spins), A.cluster_num), findfirst(eedge_spins, link[2]), sub2ind(A.outer_cluster_dims, cl_p2...))
+            p2 = sub2ind((length(eedge_spins), A.cluster_num), findfirst_c(eedge_spins, link[2]), sub2ind(A.outer_cluster_dims, cl_p2...))
             #print(io,p1,"\t",p2,"\n")
             IM[p1,p2] = link[4]
         end
@@ -285,11 +285,11 @@ function _build_QuantumClassicalInteractions(A::HybridApprox)
     q2cl = SharedMatrix{Float64}(length(cl_spins), length(edge_spins))
     fill!(q2cl, 0.0)
     for link in links
-        q2cl[link[2], findfirst(edge_spins,link[1])] += link[3]
+        q2cl[link[2], findfirst_c(edge_spins,link[1])] += link[3]
     end
     cl2q = SharedMatrix{Float64}(length(edge_spins), length(cl_spins))
     transpose!(cl2q,q2cl)
-    scale!(cl2q,-1.0)
+    rmul!(cl2q, -1.0)
     q2cl .*= sqrt(2^length(q_spins)+1)
     return edge_spins, q2cl, cl2q
 end
@@ -314,7 +314,7 @@ function build_QuantumClassicalInteractions(A::HybridApprox{Lattice{D,typeof(nea
     q2cl = Matrix{Float64}(length(cl_spins), length(edge_spins))
     fill!(q2cl, 0.0)
     for link in links
-        q2cl[link[2], findfirst(edge_spins,link[1])] += link[3]
+        q2cl[link[2], findfirst_c(edge_spins,link[1])] += link[3]
     end
     cl2q = -transpose(q2cl)
     q2cl .*= sqrt(2^length(q_spins)+1)
@@ -333,7 +333,7 @@ end
 
 function build_InterLattice_q2cl(A1::Approx1, A2::Approx2, edge_spins_len::Int64, gamma::Float64) where {Approx1<:HybridApprox, Approx2<:PureClassicalApprox}
     q_spins = get_q_spins(A1)
-    assert(length(q_spins)==edge_spins_len)
+    @assert length(q_spins)==edge_spins_len
     cl_spins = get_cl_spins(A2)
     L1 = A1.L
     L2 = A2.L

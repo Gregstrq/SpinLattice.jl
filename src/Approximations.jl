@@ -18,7 +18,7 @@ struct ClusteredApprox{Ltype,D1,D2} <: AbstractQuantumApproximation{Ltype}
     cluster_num::Int64
     function ClusteredApprox(L::Lattice{D,F,T,C}, inner_cluster_dims::NTuple{D,Int64}) where {D,F,T,C}
         for i in 1:D
-            assert(L.lattice_dims[i]%inner_cluster_dims[i] == 0)
+            @assert L.lattice_dims[i]%inner_cluster_dims[i] == 0
         end
         outer_cluster_dims = tuple([div(L.lattice_dims[i], inner_cluster_dims[i]) for i in 1:D]...)
         transpose_dims = Vector{Int64}()
@@ -48,8 +48,8 @@ mutable struct HybridApprox{Ltype} <: AbstractQuantumApproximation{Ltype}
     function HybridApprox(L::Ltype, q_spins::Vector{Tuple{Int64,Int64}}, name::Symbol) where {Ltype<:Lattice}
         q_num = length(q_spins)
         for i in 1:q_num
-            assert(1 <= q_spins[i][1] <= L.tot_cell_num)
-            assert(1 <= q_spins[i][2] <= L.cell_size)
+            @assert 1 <= q_spins[i][1] <= L.tot_cell_num
+            @assert 1 <= q_spins[i][2] <= L.cell_size
         end
         sort!(q_spins)
         cl_num = L.tot_spin_num - q_num
@@ -87,8 +87,8 @@ struct CompositeApproximation{Approx1<:AbstractApproximation, Approx2<:AbstractA
     function CompositeApproximation(A1::Approx1, A2::Approx2, gamma::Float64) where {Approx1 <: AbstractApproximation, Approx2 <: AbstractApproximation}
         L1 = A1.L
         L2 = A2.L
-        assert(L1.basis_vectors==L2.basis_vectors)
-        assert(L1.lattice_dims==L2.lattice_dims)
+        @assert L1.basis_vectors==L2.basis_vectors
+        @assert L1.lattice_dims==L2.lattice_dims
         new{Approx1, Approx2}(A1, A2, gamma)
     end
 end
@@ -161,7 +161,7 @@ end
 
 function get_first_cluster(A::ClusteredApprox{Lattice{D,F,T,C}}) where {D,F,T,C}
     q_spins = get_q_spins(A)
-    cluster_spins = Vector{Tuple{NTuple{D,Int64}, Int64}}(length(q_spins))
+    cluster_spins = Vector{Tuple{NTuple{D,Int64}, Int64}}(undef, length(q_spins))
     for i in eachindex(q_spins)
         cluster_spins[i] = (lin2cluster(A,q_spins[i][1])[1], q_spins[i][2])
         i+=1
@@ -172,7 +172,7 @@ end
 #############################################
 
 function get_positions(A::Approx, spins::Vector{NTuple{2,Int64}}) where Approx<:Union{ExactApprox, PureClassicalApprox}
-    poss = Vector{Int64}(length(spins))
+    poss = Vector{Int64}(undef, length(spins))
     l1 = A.L.cell_size
     l2 = A.L.tot_cell_num
     for i in eachindex(spins)
@@ -181,7 +181,7 @@ function get_positions(A::Approx, spins::Vector{NTuple{2,Int64}}) where Approx<:
     return sort!(poss)
 end
 function get_positions(A::ClusteredApprox, spins::Vector{NTuple{2,Int64}})
-    poss = Vector{NTuple{2,Int64}}(length(spins))
+    poss = Vector{NTuple{2,Int64}}(undef, length(spins))
     lc = A.L.cell_size
     sh = A.inner_cluster_dims
     for i in eachindex(spins)
@@ -197,8 +197,8 @@ function get_positions(A::HybridApprox, spins::Vector{NTuple{2,Int64}})
     q_poss = Vector{Int64}()
     cl_poss = Vector{Int64}()
     for spin in spins
-        pos1 = findfirst(A.q_spins, spin)
-        pos2 = findfirst(A.cl_spins, spin)
+        pos1 = findfirst_c(A.q_spins, spin)
+        pos2 = findfirst_c(A.cl_spins, spin)
         if pos1!=0
             push!(q_poss, pos1)
         elseif pos2!=0

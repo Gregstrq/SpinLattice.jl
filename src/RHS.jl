@@ -4,8 +4,8 @@ function build_RHS_function end
 @inline A_mul_B!(α::T, A::SharedMatrix{T}, B::Vector{T}, β::T, C::Vector{T}) where T<:Union{Float64, Complex{Float64}} = BLAS.gemv!('N', α, A, B, β, C)
 @inline A_mul_B!(α::T, A::Symmetric{T}, B::Vector{T}, β::T, C::Vector{T}) where T<:Union{Float64, Complex{Float64}} = BLAS.symv!(A.uplo, α, A.data, B, β, C)
 
-@inline Base.similar(VA::VectorOfArray, ::Type{T}, dims::Base.Dims{N}) where {T,N} = similar(VA, T)
-@inline Base.similar(VA::VectorOfArray, dims::Base.Dims{N}) where {N} = similar(VA)
+#@inline Base.similar(VA::VectorOfArray, ::Type{T}, dims::Base.Dims{N}) where {T,N} = similar(VA, T)
+#@inline Base.similar(VA::VectorOfArray, dims::Base.Dims{N}) where {N} = similar(VA)
 
 ############# Exact Approximation
 struct ExactRHSFunction{TS<:AbstractSparseMatrix} <: AbstractRHSFunction
@@ -15,10 +15,10 @@ function build_RHS_function(A::Approx) where {Approx<:ExactApprox}
     ExactRHSFunction(build_Hamiltonian(A))
 end
 
-function (EF::ExactRHSFunction)(t, state::T, dstate::T) where {T<:AbstractVector{Complex{Float64}}}
+function (EF::ExactRHSFunction)(dstate::T, state::T, p, t) where {T<:AbstractVector{Complex{Float64}}}
     A_mul_B!(-1im, EF.H, state, zero(Complex{Float64}), dstate)
 end
-function (EF::ExactRHSFunction)(t, u::T, du::T) where {T<:VectorOfArray{Complex{Float64},2,Array{T1,1}}} where T1<:AbstractVector{Complex{Float64}}
+function (EF::ExactRHSFunction)(du::T, u::T, p, t) where {T<:VectorOfArray{Complex{Float64},2,Array{T1,1}}} where T1<:AbstractVector{Complex{Float64}}
     @inbounds for i in eachindex(u)
         A_mul_B!(-1im, EF.H, u[i], zero(Complex{Float64}), du[i])
     end
@@ -46,15 +46,15 @@ function build_RHS_function(A::Approx) where {Approx<:ClusteredApprox}
     #average_values_arr = VectorOfArray([reshape(average_values[i], (length(edge_spins), A.cluster_num)) for i in eachindex(average_values)])
     cl_field = VectorOfArray([zeros(Float64, size(IM,1)), zeros(Float64, size(IM,1)), zeros(Float64, size(IM,1))])
     #cl_field_arr = VectorOfArray([reshape(cl_field[i], (length(edge_spins), A.cluster_num)) for i in eachindex(cl_field)])
-    edgeSpinOperators = Matrix{SharedSparseMatrixCSC{Complex{Float64}, Int64}}(3,length(edge_spins))
+    edgeSpinOperators = Matrix{SharedSparseMatrixCSC{Complex{Float64}, Int64}}(undef, 3,length(edge_spins))
     for i in eachindex(edge_spins) for sigma in 1:3
         edgeSpinOperators[sigma, i] = build_Spin_Operator(Dh, edge_spins[i], sigma)
     end end
-    cluster_temp_state = Vector{Complex{Float64}}(Dh)
+    cluster_temp_state = Vector{Complex{Float64}}(undef, Dh)
     ClusteredRHSFunction(A.L.Js, H, edgeSpinOperators, average_values, cl_field, cluster_temp_state, IM, length(edge_spins))
 end
 
-function (ClF::ClusteredRHSFunction)(t, u::T, du::T) where T<:VectorOfArray{Complex{Float64},2,Array{Array{Complex{Float64},1},1}}
+function (ClF::ClusteredRHSFunction)(du::T, u::T, p, t) where T<:VectorOfArray{Complex{Float64},2,Array{Array{Complex{Float64},1},1}}
     dims = (ClF.num_of_espins, length(u))
     @inbounds for cluster in eachindex(u)
         cl_norm = norm(u[cluster])
@@ -94,7 +94,7 @@ function build_RHS_function(A::PureClassicalApprox, factor::Float64)
     PureClassicalRHSFunction{typeof(IM)}(A.L.Js, A.L.hs, IM, cl_field)
 end
 
-function (PCF::PureClassicalRHSFunction)(t, u::T, du::T) where T<:VectorOfArray{Float64, 2, Vector{Vector{Float64}}}
+function (PCF::PureClassicalRHSFunction)(du::T, u::T, p, t) where T<:VectorOfArray{Float64, 2, Vector{Vector{Float64}}}
     @inbounds for sigma in 1:3
         fill!(PCF.cl_field[sigma], PCF.hs[sigma])
         A_mul_B!(PCF.Js[sigma], PCF.IM, u[sigma], one(Float64), PCF.cl_field[sigma])
@@ -125,17 +125,17 @@ function build_RHS_function(A::HybridApprox)
     edge_spins, q2cl, cl2q = build_QuantumClassicalInteractions(A)
     average_values = random_cl_state(length(edge_spins))
     cl_field = ArrayPartition(random_cl_state(length(edge_spins)), random_cl_state(A.cl_num))
-    edgeSpinOperators = Matrix{SharedSparseMatrixCSC{Complex{Float64}, Int64}}(length(edge_spins),3)
+    edgeSpinOperators = Matrix{SharedSparseMatrixCSC{Complex{Float64}, Int64}}(undef, length(edge_spins),3)
     for espin in eachindex(edge_spins)
         for sigma in 1:3
             edgeSpinOperators[espin, sigma] = build_Spin_Operator(Dh, edge_spins[espin], sigma)
         end
     end
-    q_temp_state = Vector{Complex{Float64}}(Dh)
+    q_temp_state = Vector{Complex{Float64}}(undef, Dh)
     HybridRHSFunction(A.L.Js, A.L.hs, H, IM, q2cl, cl2q, average_values, edgeSpinOperators, cl_field, q_temp_state)
 end
 
-function (HF::HybridRHSFunction)(t, u::T, du::T) where T<:ArrayPartition{Complex{Float64}, Tuple{Vector{Complex{Float64}}, VectorOfArray{Float64, 2, Vector{Vector{Float64}}}}}
+function (HF::HybridRHSFunction)(du::T, u::T, p, t) where T<:ArrayPartition{Complex{Float64}, Tuple{Vector{Complex{Float64}}, VectorOfArray{Float64, 2, Vector{Vector{Float64}}}}}
     qnorm = norm(u.x[1])
     @inbounds for sigma in 1:3
         for q in 1:size(HF.edgeSpinOperators,1)
@@ -178,7 +178,7 @@ function build_RHS_function(A::CompositeApproximation{Approx1,Approx2}) where {A
     CompositeRHSFunction(RHS1,RHS2, q1tocl2, cl2toq1, cl1tocl2, cl2tocl1)
 end
 
-function (CF::CompositeRHSFunction)(t, u::T, du::T) where T<:ArrayPartition{Complex{Float64},Tuple{Array{Complex{Float64},1},VectorOfArray{Float64,2,Array{Array{Float64,1},1}},VectorOfArray{Float64,2,Array{Array{Float64,1},1}}}}
+function (CF::CompositeRHSFunction)(du::T, u::T, p, t) where T<:ArrayPartition{Complex{Float64},Tuple{Array{Complex{Float64},1},VectorOfArray{Float64,2,Array{Array{Float64,1},1}},VectorOfArray{Float64,2,Array{Array{Float64,1},1}}}}
     ############## Unpacking
     HF = CF.RHS1
     PCF = CF.RHS2
