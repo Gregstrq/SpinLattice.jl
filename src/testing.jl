@@ -7,6 +7,7 @@ mkl.set_num_threads(1)
 oop = pyimport("madness")
 pysparse = pyimport("scipy.sparse")
 slinalg = pyimport("scipy.sparse.linalg")
+include("compatibility.jl")
 
 L1d_1 = ((15,), (-0.41,-0.41,0.82), Interaction(nearest_neighbours), (0.,0.,0.))
 L1d_2 = ((15,), (1.0,1.0,1.0), Interaction(nearest_neighbours), (0.,0.,0.))
@@ -247,6 +248,7 @@ function test_operators(M::Exact, dims::NTuple{D,Int64}, Js::NTuple{3,Float64}, 
     sp.initState()
     u0 = copy(sp.psi)
     du = copy(u0)
+    RHS(du,u0,0.0,0.0)
     tj = -time()
     RHS(du,u0,0.0,0.0)
     tj += time()
@@ -279,7 +281,7 @@ function test_operators(M::Clustered, dims::NTuple{D,Int64}, Js::NTuple{3,Float6
         ops_j[index] = jlmat2pymat(Obs.QO.O)
     end
     num_of_espins = RHS.num_of_espins
-    taus_j = Matrix(num_of_espins, 3)
+    taus_j = Matrix(undef, num_of_espins, 3)
     for espin in 1:num_of_espins for sigma in 1:3
         taus_j[espin, sigma] = jlmat2pymat(RHS.edgeSpinOperators[sigma, espin])
     end end
@@ -287,6 +289,7 @@ function test_operators(M::Clustered, dims::NTuple{D,Int64}, Js::NTuple{3,Float6
     cluster_num = size(sp.psi,1)
     u0 = VectorOfArray([copy(sp.psi[i,:]) for i in 1:cluster_num])
     du = VectorOfArray([copy(sp.psi[i,:]) for i in 1:cluster_num])
+    RHS(du,u0,0.0,0.0)
     tj = -time()
     RHS(du,u0,0.0,0.0)
     tj += time()
@@ -314,7 +317,7 @@ function test_operators(M::Clustered, dims::NTuple{D,Int64}, Js::NTuple{3,Float6
         p2 = sub2ind((noe,cl_num), link[2][2]+1, link[2][1]+1)
         IMp[p1,p2] += 1.0
     end
-    IMp .= .-IMp.*0.25.*sqrt(sp.N)
+    IMp .= .-IMp.*0.25.*sqrt(sp.N+1)
     @printf("Check intrablock matrix: %10e\n", norm(IMp-RHS.IM)/norm(IMp))
     ####################
     print("Check observables:\n")
@@ -351,12 +354,14 @@ function test_operators(M::Hybrid, dims::NTuple{D,Int64}, Js::NTuple{3,Float64},
     sp = py_initialize(M, dims, Js, I, hs)
     H_j = jlmat2pymat(RHS.H)
     ops_j = Dict()
+    obs_j = Dict()
     for Obs in OSET.Observables
         index = (axis_dict[Obs.axis]-1, d[Obs.name])
         ops_j[index] = (jlmat2pymat(Obs.QO.O),Obs)
+        obs_j[index] = Obs
     end
     num_of_espins = size(RHS.edgeSpinOperators,1)
-    taus_j = Matrix(num_of_espins, 3)
+    taus_j = Matrix(undef, num_of_espins, 3)
     for espin in 1:num_of_espins for sigma in 1:3
         taus_j[espin, sigma] = jlmat2pymat(RHS.edgeSpinOperators[espin, sigma])
     end end
@@ -364,6 +369,7 @@ function test_operators(M::Hybrid, dims::NTuple{D,Int64}, Js::NTuple{3,Float64},
     sp.updateCorrelator()
     u0 = ArrayPartition(copy(sp.psi), VectorOfArray([copy(sp.clState[i,:]) for i in 1:3]))
     du = ArrayPartition(copy(sp.psi), VectorOfArray([copy(sp.clState[i,:]) for i in 1:3]))
+    RHS(du,u0,0.0,0.0)
     tj = -time()
     RHS(du,u0,0.0,0.0)
     tj += time()
@@ -399,20 +405,20 @@ function test_operators(M::Hybrid, dims::NTuple{D,Int64}, Js::NTuple{3,Float64},
     print("Local: ")
     for axis in [0,1,2]
         index = (axis,"Local")
-        @printf("%10e ", norm(sp.means[index][end] - ops_j[index][2](u0))/norm(sp.means[index][end]))
+        @printf("%10e ", norm(sp.means[index][end] - ops_j[index][2](u0)*sp.iNroot*2)/norm(sp.means[index][end]))
     end
     print("\n")
     print("Global: ")
     for axis in [0,1,2]
         index = (axis,"Global")
-        @printf("%10e ", norm(sp.means[index][end] - ops_j[index][2](u0))/norm(sp.means[index][end]))
+        @printf("%10e ", norm(sp.means[index][end] - ops_j[index][2](u0)*sp.iNroot*2)/norm(sp.means[index][end]))
     end
     print("\n")
     ###################
     IM_j = jlmat2pymat(RHS.IM)
     q2cl_j = jlmat2pymat(RHS.q2cl)
     cl2q_j = jlmat2pymat(RHS.cl2q)
-    q2cl_p = sp.Q2CL*0.5*sqrt(get_Dh(A))
+    q2cl_p = sp.Q2CL*0.5*sqrt(get_Dh(A)+1)
     cl2q_p = sp.CL2Q*-0.5
     @printf("Check IM: %10e\n", slinalg.norm(sp.FM-IM_j)/slinalg.norm(sp.FM))
     @printf("Check Q2CL: %10e\n", slinalg.norm(q2cl_p-q2cl_j)/slinalg.norm(q2cl_p))
@@ -441,7 +447,7 @@ function test_operators(M::Hybrid, dims::NTuple{3,Int64}, Js::NTuple{3,Float64},
         end
     end
     num_of_espins = size(RHS.edgeSpinOperators,1)
-    taus_j = Matrix(num_of_espins, 3)
+    taus_j = Matrix(undef, num_of_espins, 3)
     for espin in 1:num_of_espins for sigma in 1:3
         taus_j[espin, sigma] = jlmat2pymat(RHS.edgeSpinOperators[espin, sigma])
     end end
@@ -449,6 +455,7 @@ function test_operators(M::Hybrid, dims::NTuple{3,Int64}, Js::NTuple{3,Float64},
     sp.updateCorrelator()
     u0 = ArrayPartition(copy(sp.psi), VectorOfArray([copy(sp.clState[i,:]) for i in 1:3]))
     du = ArrayPartition(copy(sp.psi), VectorOfArray([copy(sp.clState[i,:]) for i in 1:3]))
+    RHS(du,u0,0.0,0.0)
     tj = -time()
     RHS(du,u0,0.0,0.0)
     tj += time()
@@ -474,9 +481,9 @@ function test_operators(M::Hybrid, dims::NTuple{3,Int64}, Js::NTuple{3,Float64},
     ###################
     print("Check observable vals:\n")
     index = "Local"
-    @printf("Local: %10e\n", norm(sp.means[index][end] - ops_j[index][2](u0))/norm(sp.means[index][end]))
+    @printf("Local: %10e\n", norm(sp.means[index][end] - ops_j[index][2](u0)*sp.iNroot*2)/norm(sp.means[index][end]))
     index = "Global"
-    @printf("Global: %10e\n", norm(sp.means[index][end] - ops_j[index][2](u0))/norm(sp.means[index][end]))
+    @printf("Global: %10e\n", norm(sp.means[index][end] - ops_j[index][2](u0)*sp.iNroot*2)/norm(sp.means[index][end]))
     ###################
     IM_j = RHS.IM
     q2cl_j = RHS.q2cl
@@ -502,9 +509,9 @@ function convert_state(A::PureClassicalApprox, sp)
     return u0
 end
 
-function test_operators(M::PureClassical, dims::NTuple{D,Int64}, Js::NTuple{3,Float64}, I::Interaction{F}, hs::NTuple{3,Float64}, B::Bool=true) where {D, F}
-    A,RHS,OSET, rules = julia_initialize(M, dims, Js, I, hs, B)
-    sp = py_initialize(M, dims, Js, I, hs; cb=B)
+function test_operators(M::PureClassical, dims::NTuple{D,Int64}, Js::NTuple{3,Float64}, I::Interaction{F}, hs::NTuple{3,Float64}) where {D, F}
+    A,RHS,OSET, rules = julia_initialize(M, dims, Js, I, hs, true)
+    sp = py_initialize(M, dims, Js, I, hs)
     ops_j = Dict()
     for Obs in OSET.Observables
         index = axis_dict[Obs.axis]-1
@@ -514,6 +521,7 @@ function test_operators(M::PureClassical, dims::NTuple{D,Int64}, Js::NTuple{3,Fl
     sp.updateCorrelator()
     u0 = VectorOfArray([copy(sp.clState[i,:]) for i in 1:3])
     du = VectorOfArray([copy(sp.clState[i,:]) for i in 1:3])
+    RHS(du,u0,0.0,0.0)
     tj = -time()
     RHS(du,u0,0.0,0.0)
     tj += time()
@@ -554,6 +562,7 @@ function test_operators(M::PureClassical, dims::NTuple{3,Int64}, Js::NTuple{3,Fl
     sp.updateCorrelator()
     u0 = VectorOfArray([copy(sp.clState[i,:]) for i in 1:3])
     du = VectorOfArray([copy(sp.clState[i,:]) for i in 1:3])
+    RHS(du,u0,0.0,0.0)
     tj = -time()
     RHS(du,u0,0.0,0.0)
     tj += time()
@@ -609,11 +618,11 @@ end
 function test_clustered()
     for L in L1d[1:4]
         test_operators(Clustered(), L...)
-        gc()
+        GC.gc()
     end
     for L in L2d[1:4]
         test_operators(Clustered(), L...)
-        gc()
+        GC.gc()
     end
 end
 
@@ -623,34 +632,35 @@ function test_all()
         for L in L1d[1:4]
             print(model,"\n")
             test_operators(model, L...)
-            gc()
+            GC.gc()
         end
     end
     for model in Models
         for L in L2d[1:4]
             print(model,"\n")
             test_operators(model, L...)
-            gc()
+            GC.gc()
         end
     end
-    for model in Models[2:4]
+    for model in Models[[2,4]]
         for L in L3d[2:4]
             print(model,"\n")
             test_operators(model, L...)
-            gc()
+            GC.gc()
         end
     end
 end
 
 function test_boundary()
-    Models = [Exact(), PureClassical()]
+    #Models = [Exact(), PureClassical()]
+    Models = [Exact()]
     cbs = [true, false]
     for model in Models
         for L in L1d[1:4]
             for cb in cbs
                 print(model, " cb=", cb,"\n")
                 test_operators(model, L...,cb)
-                gc()
+                GC.gc()
             end
         end
     end
@@ -662,7 +672,7 @@ function test_3d()
         for L in L3d[2:4]
             print(model,"\n")
             test_operators(model, L...)
-            gc()
+            GC.gc()
         end
     end
 end

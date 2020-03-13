@@ -311,7 +311,7 @@ function build_QuantumClassicalInteractions(A::HybridApprox{Lattice{D,typeof(nea
     end
     edge_spins = Int64[edge_spins...]
     sort!(edge_spins)
-    q2cl = Matrix{Float64}(length(cl_spins), length(edge_spins))
+    q2cl = Matrix{Float64}(undef, length(cl_spins), length(edge_spins))
     fill!(q2cl, 0.0)
     for link in links
         q2cl[link[2], findfirst_c(edge_spins,link[1])] += link[3]

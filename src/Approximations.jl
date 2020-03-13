@@ -123,7 +123,7 @@ get_cl_spins(A::PureClassicalApprox) = translate_indices(A.L, CartesianIndices(t
 @inline get_central_spins(A::ClusteredApprox) = get_central_spins(A.L, A.inner_cluster_dims)
 @inline function get_central_spins(A::HybridApprox)
     name = string(A.name)
-    if contains(name, "block__")
+    if occursin("block__", name)
         ds = split(name[8:end], '_')
         dims = map(x->parse(Int64, x), ds)
         return get_central_spins(A.L, Tuple(dims))

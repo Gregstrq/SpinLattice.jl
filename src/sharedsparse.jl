@@ -49,10 +49,10 @@ convert(::Type{SharedSparseMatrixCSC}, M::Matrix) = sparse(M)
 convert(::Type{SharedSparseMatrixCSC}, M::AbstractMatrix{Tv}) where {Tv} = convert(SharedSparseMatrixCSC{Tv,Int}, M)
 convert(::Type{SharedSparseMatrixCSC{Tv}}, M::AbstractMatrix{Tv}) where {Tv} = convert(SharedSparseMatrixCSC{Tv,Int}, M)
 function convert(::Type{SharedSparseMatrixCSC{Tv,Ti}}, M::AbstractMatrix) where {Tv,Ti}
-    (I, J, V) = findnz(M)
-    eltypeTiI = Base.convert(Vector{Ti}, I)
-    eltypeTiJ = Base.convert(Vector{Ti}, J)
-    eltypeTvV = Base.convert(Vector{Tv}, V)
+    I = findall(!iszero, M)
+    eltypeTiI = Base.convert(Vector{Ti}, getindex.(I, 1))
+    eltypeTiJ = Base.convert(Vector{Ti}, getindex.(I, 2))
+    eltypeTvV = Base.convert(Vector{Tv}, M[I])
     return shared_sparse_IJ_sorted(eltypeTiI, eltypeTiJ, eltypeTvV, size(M)...)
 end
 

@@ -55,7 +55,7 @@ def diag9_111():
 
 class UniformLattice(object):
     classPrefix = 'ul'
-    def __init__(self, dims, hz = (0., 0., 0.), Js = (-0.41, -0.41, 0.82), Tmax = 40., tstep = 0.0078125, cb = True):
+    def __init__(self, dims, hz = (0., 0., 0.), Js = (-0.41, -0.41, 0.82), Tmax = 40., tstep = 0.0078125, cb = True, pos_list = None):
         self.n = np.prod(dims)
         self.N = 2**self.n
         self.dims = np.array(dims)
@@ -69,7 +69,9 @@ class UniformLattice(object):
         self.tstep = tstep
         self.id6 = 1/6.
         self.init_Hamiltonian(cyclic_boundaries = cb)
-        self.init_Magnetization()
+        if pos_list is None:
+            pos_list = xrange(self.n)
+        self.init_Magnetization(pos_list)
         self.ts = np.arange(0, Tmax+tstep, tstep)
         self.initIntegrator()
         self.logfile = None
@@ -92,18 +94,18 @@ class UniformLattice(object):
         for i in xrange(self.D):
             counter -= self.n/self.dims[i]
         return counter
-    def init_Magnetization(self):
+    def init_Magnetization(self, pos_list):
         self.Ms = {}
         for i in [0,1,2]:
-            row = np.ndarray((self.N*self.n),dtype=int)
-            col = np.ndarray((self.N*self.n),dtype=int)
+            row = np.ndarray((self.N*len(pos_list)),dtype=int)
+            col = np.ndarray((self.N*len(pos_list)),dtype=int)
             if i==1:
-                data = np.ndarray((self.N*self.n),dtype=complex)
+                data = np.ndarray((self.N*len(pos_list)),dtype=complex)
             else:
-                data = np.ndarray((self.N*self.n),dtype=float)
+                data = np.ndarray((self.N*len(pos_list)),dtype=float)
             index = 0
             for vec in xrange(self.N):
-                for pos in xrange(self.n):
+                for pos in pos_list:
                     data[index], row[index] = pauli[i](vec, pos)
                     col[index] = vec
                     index+=1
@@ -307,7 +309,7 @@ class ClusteredLattice(UniformLattice):
         self.init_Hamiltonian(cyclic_boundaries = False)
         #self.init_Magnetization()
         self.init_SpinOperators()
-        self.Js *= np.sqrt(self.N)
+        self.Js *= np.sqrt(self.N+1)
         self.ts = np.arange(0, delimiter*Tmax+tstep, tstep)
         self.initIntegrator()
         self.setModes(Modes)
@@ -550,7 +552,7 @@ class HybridLattice(ClusteredLattice):
         self.tstep = tstep
         self.delimiter = delimiter
         self.id6 = 1/6.
-        self.Nroot = np.sqrt(self.N)
+        self.Nroot = np.sqrt(self.N+1)
         self.iNroot = 1/self.Nroot
         self.ts = np.arange(0, delimiter*Tmax+tstep, tstep)
         self.init_Hamiltonian(cyclic_boundaries = False)
@@ -791,7 +793,7 @@ class HybridLatticeIR(HybridLattice):
         self.delimiter = delimiter
         self.radius = radius
         self.id6 = 1/6.
-        self.Nroot = np.sqrt(self.N)
+        self.Nroot = np.sqrt(self.N+1)
         self.iNroot = 1/self.Nroot
         self.ts = np.arange(0, delimiter*Tmax+tstep, tstep)
         self.get_spins_inside_radius()
@@ -957,7 +959,7 @@ class FIDLattice(HybridLatticeIR):
         self.delimiter = delimiter
         self.id6 = 1/6.
         self.id6 = 1/6.
-        self.Nroot = np.sqrt(self.N)
+        self.Nroot = np.sqrt(self.N+1)
         self.iNroot = 1/self.Nroot
         self.ts = np.arange(0, delimiter*Tmax+tstep, tstep)
         self.coefs = [-0.5,-0.5,1.]
@@ -1223,7 +1225,7 @@ class FIDLatticeStub(HybridLatticeIR):
         self.delimiter = delimiter
         self.id6 = 1/6.
         self.id6 = 1/6.
-        self.Nroot = np.sqrt(self.N)
+        self.Nroot = np.sqrt(self.N+1)
         self.iNroot = 1/self.Nroot
         self.ts = np.arange(0, delimiter*Tmax+tstep, tstep)
         self.coefs = [-0.5,-0.5,1.]

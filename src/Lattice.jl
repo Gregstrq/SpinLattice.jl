@@ -146,8 +146,8 @@ function get_central_spins(L::Lattice, dims::NTuple{N,Int64}) where {N}
             push!(v, [s+1])
         end
     end
-    c_cells = product(v...)
-    return translate_indices(L, [sub2ind(L.lattice_dims, idxs...) for idxs in product(v...)])
+    c_cells = vec([idxs for idxs in Iterators.product(v...)])
+    return translate_indices(L, [sub2ind(L.lattice_dims, idxs...) for idxs in c_cells])
 end
 
 change_dims(dims1, dims2, index) = ind2sub(dims2, sub2ind(dims1, index...))
